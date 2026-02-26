@@ -79,6 +79,7 @@ def get_db() -> _DB:
         database=url.path.lstrip("/"),
         user=url.username,
         password=urllib.parse.unquote(url.password or ""),
+        sslmode="require",
     )
     return _DB(conn)
 
@@ -137,7 +138,7 @@ def init_db():
             total_ttc         REAL  DEFAULT 0,
             objet             TEXT,
             reglement         TEXT  DEFAULT 'Chèque',
-            paiement          TEXT  DEFAULT '40% à la commande, 30% à mi-projet, 30% à la livraison',
+            paiement          TEXT  DEFAULT '40%% à la commande, 30%% à mi-projet, 30%% à la livraison',
             validite_jours    INTEGER,
             delai_min         INTEGER,
             delai_max         INTEGER,
@@ -169,7 +170,7 @@ def init_db():
             total_ttc         REAL  DEFAULT 0,
             objet             TEXT,
             reglement         TEXT  DEFAULT 'Chèque',
-            paiement          TEXT  DEFAULT '40% à la commande, 30% à mi-projet, 30% à la livraison',
+            paiement          TEXT  DEFAULT '40%% à la commande, 30%% à mi-projet, 30%% à la livraison',
             validite_jours    INTEGER,
             delai_min         INTEGER,
             delai_max         INTEGER,
