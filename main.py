@@ -13,6 +13,7 @@ import urllib.parse
 import hashlib
 import hmac
 import secrets
+import time
 
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -237,22 +238,28 @@ def init_db():
         )
     """)
 
-    # Seed default users on first run
-    if conn.execute("SELECT COUNT(*) AS cnt FROM users").fetchone()['cnt'] == 0:
-        conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s)",
-            ("admin", hash_password("Admin@123"), "admin")
-        )
-        conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s)",
-            ("agent", hash_password("Agent@123"), "agent")
-        )
+    # Seed default users (safe to run every startup — ON CONFLICT DO NOTHING)
+    conn.execute(
+        "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s) ON CONFLICT (username) DO NOTHING",
+        ("admin", hash_password("Admin@123"), "admin")
+    )
+    conn.execute(
+        "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s) ON CONFLICT (username) DO NOTHING",
+        ("agent", hash_password("Agent@123"), "agent")
+    )
 
     conn.commit()
     conn.close()
 
 
-init_db()
+for _attempt in range(5):
+    try:
+        init_db()
+        break
+    except Exception as _e:
+        if _attempt == 4:
+            raise
+        time.sleep(2 ** _attempt)  # 1s, 2s, 4s, 8s
 
 
 def migrate_db():
