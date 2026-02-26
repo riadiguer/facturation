@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture {{ facture_num }} - EURL E-BUSINESS LAB</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        @page { size: A4; margin: 0; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; margin: 0; padding: 0; }
+            .invoice {
+                box-shadow: none;
+                margin: 0;
+                padding: 12mm 15mm;
+                width: 100%;
+                min-height: 297mm;
+                height: auto;
+                background-image: none;
+            }
+            input, textarea {
+                border-bottom-color: transparent !important;
+            }
+            .signature-section,
+            .footer {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .signature-section {
+                break-before: avoid;
+                page-break-before: avoid;
+            }
+            #services-body tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            background: #d1d5db;
+            padding: 20px;
+        }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            text-align: center;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 22px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            transition: opacity .2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { opacity: .85; }
+        .btn-primary  { background: #2563eb; color: white; }
+        .btn-save     { background: #16a34a; color: white; }
+        .btn-back     { background: #6b7280; color: white; }
+        .btn-logout   { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+        .btn-logout:hover { background: #f3f4f6; }
+
+        .user-info {
+            font-size: 12px;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .role-tag {
+            background: #2563eb;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .role-tag.admin { background: #d97706; }
+        .btn-danger   { background: #dc2626; color: white; font-size: 11px; padding: 3px 7px; border-radius: 3px; }
+        .btn-add      { background: #6b7280; color: white; font-size: 11px; padding: 5px 12px; border-radius: 3px; }
+
+        /* ── Invoice wrapper ── */
+        .invoice {
+            background: white;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 12mm 15mm 10mm;
+            box-shadow: 0 4px 20px rgba(0,0,0,.35);
+            display: flex;
+            flex-direction: column;
+            background-image: repeating-linear-gradient(
+                to bottom,
+                transparent 0,
+                transparent calc(297mm - 2px),
+                #bbb calc(297mm - 2px),
+                #bbb 297mm
+            );
+        }
+
+        /* ── Header ── */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+
+        .company-name {
+            font-size: 17px;
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 5px;
+        }
+
+        .company-address {
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 1.5;
+            margin-bottom: 6px;
+        }
+
+        .company-desc {
+            font-size: 10px;
+            font-weight: bold;
+            max-width: 230px;
+            line-height: 1.5;
+        }
+
+        .company-right {
+            font-size: 11px;
+            line-height: 1.7;
+        }
+
+        .separator {
+            border: none;
+            border-top: 2px solid #000;
+            margin: 7px 0;
+        }
+
+        /* ── Meta / client info ── */
+        .meta-section {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0 6px;
+        }
+
+        .meta-left  { flex: 1; }
+        .meta-right { flex: 1.2; }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .field-label {
+            font-weight: bold;
+            white-space: nowrap;
+            min-width: 130px;
+        }
+
+        .field-input {
+            border: none;
+            border-bottom: 1px solid #000;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            flex: 1;
+            padding: 1px 4px;
+            min-width: 0;
+            background: transparent;
+        }
+
+        /* ── Charged / Secteur ── */
+        .charged-section {
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 5px 0;
+            margin-bottom: 8px;
+        }
+
+        /* ── Services table ── */
+        .services-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+
+        .services-table th {
+            background: white;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #000;
+            padding: 6px 4px;
+            font-size: 11px;
+        }
+
+        .services-table td {
+            border: 1px solid #000;
+            padding: 3px 4px;
+            vertical-align: middle;
+        }
+
+        .col-service { width: 45%; }
+        .col-details { width: 35%; }
+        .col-prix    { width: 20%; }
+
+        .services-table td textarea {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            resize: none;
+            background: transparent;
+            min-height: 28px;
+            display: block;
+        }
+
+        .prix-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 3px;
+        }
+
+        .prix-cell input {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            text-align: right;
+            background: transparent;
+            min-height: 28px;
+        }
+
+        /* ── Summary ── */
+        .summary-section {
+            display: flex;
+            margin: 8px 0;
+            border: 1px solid #000;
+        }
+
+        .montant-lettre {
+            flex: 1;
+            padding: 8px;
+            border-right: 1px solid #000;
+        }
+
+        .montant-lettre .ml-label {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 6px;
+        }
+
+        .montant-lettre .ml-text {
+            font-size: 11px;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        .totals-table {
+            border-collapse: collapse;
+            min-width: 240px;
+        }
+
+        .totals-table td {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .totals-table .t-label { font-weight: normal; min-width: 130px; }
+        .totals-table .t-label.bold { font-weight: bold; }
+        .totals-table .t-value { min-width: 100px; text-align: right; }
+
+        .totals-table input {
+            border: none;
+            outline: none;
+            text-align: right;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            width: 100%;
+            background: transparent;
+        }
+
+        /* ── Mode de règlement ── */
+        .mode-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0 18px;
+        }
+
+        .mode-row .m-label {
+            font-weight: bold;
+            text-decoration: underline;
+            white-space: nowrap;
+        }
+
+        .mode-row .field-input { margin-left: 6px; }
+
+        /* ── Signature / Cachet ── */
+        .signature-section {
+            display: flex;
+            gap: 20px;
+            margin: 16px 0 8px;
+        }
+
+        .sig-box { flex: 1; }
+
+        .sig-label {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+
+        .sig-space {
+            height: 60px;
+            border: 1px solid #000;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding-top: 8px;
+            border-top: 1px solid #000;
+            margin-top: auto;
+        }
+
+        .footer-company {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+
+        .footer-details {
+            font-size: 10px;
+            line-height: 1.8;
+        }
+
+        /* ── Toast ── */
+        #toast {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 28px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,.3);
+        }
+        #toast.success { background: #16a34a; }
+        #toast.error   { background: #dc2626; }
+    </style>
+</head>
+<body>
+
+<!-- ── Injected server data ── -->
+<script>
+    const FACTURE_NUM  = {{ facture_num | tojson }};
+    const INVOICE_DATA = {{ invoice | tojson if invoice else 'null' }};
+    const IS_READONLY  = {{ 'true' if readonly else 'false' }};
+</script>
+
+<!-- Toolbar -->
+<div class="toolbar no-print">
+    <a href="/" class="btn btn-back">&#8592; Retour à la liste</a>
+    <button class="btn btn-primary" onclick="window.print()">&#128438; Imprimer / PDF</button>
+    {% if not readonly %}
+    <button class="btn btn-save" id="btn-save" onclick="saveInvoice()">&#128190; Sauvegarder</button>
+    {% endif %}
+    {% if readonly and creator %}
+    <span class="user-info" style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:5px 12px; color:#16a34a;">
+        &#9997; Créé par&nbsp;<strong>{{ creator }}</strong>
+    </span>
+    {% endif %}
+    <span class="user-info">
+        &#128100; {{ current_user.username }}
+        <span class="role-tag {% if current_user.role == 'admin' %}admin{% endif %}">{{ current_user.role }}</span>
+    </span>
+    <a href="/logout" class="btn btn-logout">Déconnexion</a>
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<div class="invoice">
+
+    <!-- ══ HEADER ══ -->
+    <div class="header">
+        <div class="company-left">
+            <div class="company-name">EURL E- BUSINESS LAB</div>
+            <div class="company-address">
+                Adresse: Rue , Colonel Amirouche Bordj el Kiffan,<br>
+                Bab ezzouar, Alger, Algerie
+            </div>
+            <div class="company-desc">
+                Entreprise Algerienne spécialisée dans l'accompagnement<br>
+                stratégique, le marketing , le développement et les solution<br>
+                digitauxRue
+            </div>
+        </div>
+        <div class="company-right">
+            <strong>RC :</strong> 25B1054070 - 16/00<br>
+            <strong>NIS :</strong> 0025 1630 02578 41<br>
+            <strong>NIF :</strong> 002516105407061<br>
+            <strong>AI:</strong> 16300214211<br>
+            <strong>Compte bancaire :</strong><br>
+            021 00019 1130072030 84 SOCIETE GENERALE<br>
+            ALGERIE
+        </div>
+    </div>
+
+    <hr class="separator">
+
+    <!-- ══ META INFO ══ -->
+    <div class="meta-section">
+        <div class="meta-left">
+            <div class="field-row">
+                <span class="field-label"><strong>Facture N° :</strong></span>
+                <input type="text" class="field-input" id="facture-num" readonly>
+            </div>
+            <div class="field-row">
+                <span class="field-label"><strong>Date de Facture:</strong></span>
+                <input type="date" class="field-input" id="facture-date">
+            </div>
+        </div>
+        <div class="meta-right">
+            <div class="field-row">
+                <span class="field-label"><strong>Doit :</strong></span>
+                <input type="text" class="field-input" id="client-doit">
+            </div>
+            <div class="field-row">
+                <span class="field-label"><strong>Adresse :</strong></span>
+                <input type="text" class="field-input" id="client-adresse">
+            </div>
+            <div class="field-row">
+                <span class="field-label"><strong>AI :</strong></span>
+                <input type="text" class="field-input" id="client-ai">
+            </div>
+            <div class="field-row">
+                <span class="field-label"><strong>RC :</strong></span>
+                <input type="text" class="field-input" id="client-rc">
+            </div>
+            <div class="field-row">
+                <span class="field-label"><strong>NIF:</strong></span>
+                <input type="text" class="field-input" id="client-nif">
+            </div>
+            <div class="field-row">
+                <span class="field-label"><strong>NIS:</strong></span>
+                <input type="text" class="field-input" id="client-nis">
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ CHARGED / SECTEUR ══ -->
+    <div class="charged-section">
+        <div class="field-row" style="flex:1; margin-bottom:0; margin-right:15px;">
+            <span class="field-label"><u><strong>Chargé de compte :</strong></u></span>
+            <input type="text" class="field-input" id="charge">
+        </div>
+        <div class="field-row" style="flex:1; margin-bottom:0;">
+            <span class="field-label"><u><strong>Secteur d'activité :</strong></u></span>
+            <input type="text" class="field-input" id="secteur">
+        </div>
+    </div>
+
+    <!-- ══ SERVICES TABLE ══ -->
+    <table class="services-table">
+        <thead>
+            <tr>
+                <th class="col-service">SERVICE</th>
+                <th class="col-details">DETAILS</th>
+                <th class="col-prix">PRIX TOTAL</th>
+            </tr>
+        </thead>
+        <tbody id="services-body"></tbody>
+    </table>
+
+    <div class="no-print" style="margin-bottom:8px;" id="add-row-btn">
+        <button class="btn btn-add" onclick="addRow()">+ Ajouter une ligne</button>
+    </div>
+
+    <!-- ══ SUMMARY ══ -->
+    <div class="summary-section">
+        <div class="montant-lettre">
+            <div class="ml-label">Montant en lettre :</div>
+            <div class="ml-text" id="montant-lettre-text"></div>
+        </div>
+        <table class="totals-table">
+            <tr>
+                <td class="t-label">Montant HT</td>
+                <td class="t-value"><span id="montant-ht">0,00</span></td>
+            </tr>
+            <tr>
+                <td class="t-label" style="font-size:10px;">Montant TVA (19%)</td>
+                <td class="t-value"><span id="montant-tva">0,00</span></td>
+            </tr>
+            <tr>
+                <td class="t-label">Montant TTC</td>
+                <td class="t-value"><span id="montant-ttc">0,00</span></td>
+            </tr>
+            <tr>
+                <td class="t-label">Timbre</td>
+                <td class="t-value">
+                    <input type="number" id="timbre" value="0" min="0" step="0.01"
+                           oninput="calculateTotals()">
+                </td>
+            </tr>
+            <tr>
+                <td class="t-label bold">Net a payé</td>
+                <td class="t-value"><strong><span id="net-a-payer">0,00</span></strong></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ══ MODE DE REGLEMENT ══ -->
+    <div class="mode-row">
+        <span class="m-label">Mode de règlement:</span>
+        <input type="text" class="field-input" id="mode-reglement">
+    </div>
+
+    <!-- ══ SIGNATURE / CACHET ══ -->
+    <div class="signature-section">
+        <div class="sig-box">
+            <div class="sig-label">Signature :</div>
+            <div class="sig-space"></div>
+        </div>
+        <div class="sig-box">
+            <div class="sig-label">Cachet :</div>
+            <div class="sig-space"></div>
+        </div>
+    </div>
+
+    <!-- ══ FOOTER ══ -->
+    <div class="footer">
+        <div class="footer-company">EURL E BUSINESS LAB</div>
+        <div class="footer-details">
+            Adresse: Rue colonel Amirouche Bordj el Kiffan, Bab ezzouar, Alger, Algerie<br>
+            Site web: www.ebusinesslabdz.com<br>
+            Adresse Email: info@ebusinesslabdz.com<br>
+            Telephone: 0661490490
+        </div>
+    </div>
+
+</div><!-- .invoice -->
+
+<script>
+// ── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('facture-num').value = FACTURE_NUM;
+
+    if (INVOICE_DATA) {
+        // Pre-fill saved invoice
+        setVal('facture-date',    INVOICE_DATA.facture_date    || '');
+        setVal('client-doit',     INVOICE_DATA.client_doit     || '');
+        setVal('client-adresse',  INVOICE_DATA.client_adresse  || '');
+        setVal('client-ai',       INVOICE_DATA.client_ai       || '');
+        setVal('client-rc',       INVOICE_DATA.client_rc       || '');
+        setVal('client-nif',      INVOICE_DATA.client_nif      || '');
+        setVal('client-nis',      INVOICE_DATA.client_nis      || '');
+        setVal('charge',          INVOICE_DATA.charge          || '');
+        setVal('secteur',         INVOICE_DATA.secteur         || '');
+        setVal('mode-reglement',  INVOICE_DATA.mode_reglement  || '');
+        setVal('timbre',          INVOICE_DATA.timbre          || 0);
+
+        const services = INVOICE_DATA.services || [];
+        if (services.length > 0) {
+            services.forEach(s => addRow(s.service, s.details, s.prix));
+        } else {
+            addRow(); addRow(); addRow();
+        }
+    } else {
+        // New invoice
+        document.getElementById('facture-date').value = today();
+        addRow(); addRow(); addRow();
+    }
+
+    if (IS_READONLY) {
+        // Disable all inputs for read-only view
+        document.querySelectorAll('.invoice input, .invoice textarea').forEach(el => {
+            el.setAttribute('readonly', true);
+            el.style.cursor = 'default';
+        });
+        document.getElementById('add-row-btn').style.display = 'none';
+        document.querySelectorAll('.btn-danger').forEach(b => b.style.display = 'none');
+    }
+
+    calculateTotals();
+});
+
+function setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+}
+
+function today() {
+    return new Date().toISOString().split('T')[0];
+}
+
+// ── Row management ────────────────────────────────────────────────────────
+function addRow(service = '', details = '', prix = '') {
+    const tbody = document.getElementById('services-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="col-service">
+            <textarea rows="2" oninput="autoResize(this)">${escHtml(service)}</textarea>
+        </td>
+        <td class="col-details">
+            <textarea rows="2" oninput="autoResize(this)">${escHtml(details)}</textarea>
+        </td>
+        <td class="col-prix">
+            <div class="prix-cell">
+                <input type="number" min="0" step="0.01" value="${prix || ''}"
+                       placeholder="0.00" oninput="calculateTotals()">
+                <button class="btn btn-danger no-print" onclick="removeRow(this)">&#10005; Supprimer</button>
+            </div>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    calculateTotals();
+}
+
+function removeRow(btn) {
+    btn.closest('tr').remove();
+    calculateTotals();
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ── Calculations ──────────────────────────────────────────────────────────
+function calculateTotals() {
+    let ht = 0;
+    document.querySelectorAll('#services-body input[type="number"]').forEach(inp => {
+        ht += parseFloat(inp.value) || 0;
+    });
+
+    const tva    = ht * 0.19;
+    const ttc    = ht + tva;
+    const timbre = parseFloat(document.getElementById('timbre').value) || 0;
+    const net    = ttc + timbre;
+
+    document.getElementById('montant-ht').textContent  = fmt(ht);
+    document.getElementById('montant-tva').textContent = fmt(tva);
+    document.getElementById('montant-ttc').textContent = fmt(ttc);
+    document.getElementById('net-a-payer').textContent = fmt(net);
+
+    const cents = Math.round((net % 1) * 100);
+    let words = numberToFrench(Math.floor(net)) + ' dinars algériens';
+    if (cents > 0) words += ' et ' + numberToFrench(cents) + ' centimes';
+    document.getElementById('montant-lettre-text').textContent =
+        words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function fmt(n) {
+    return n.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────
+async function saveInvoice() {
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.textContent = 'Sauvegarde...';
+
+    // Collect services
+    const services = [];
+    document.querySelectorAll('#services-body tr').forEach(row => {
+        const tas  = row.querySelectorAll('textarea');
+        const prix = row.querySelector('input[type="number"]');
+        services.push({
+            service: tas[0]?.value || '',
+            details: tas[1]?.value || '',
+            prix:    parseFloat(prix?.value) || 0
+        });
+    });
+
+    // Read totals from displayed spans
+    const parseNum = id => parseFloat(
+        document.getElementById(id).textContent.replace(/\s/g, '').replace(',', '.') || 0
+    );
+
+    const payload = {
+        facture_num:     document.getElementById('facture-num').value,
+        facture_date:    document.getElementById('facture-date').value     || null,
+        client_doit:     document.getElementById('client-doit').value      || null,
+        client_adresse:  document.getElementById('client-adresse').value   || null,
+        client_ai:       document.getElementById('client-ai').value        || null,
+        client_rc:       document.getElementById('client-rc').value        || null,
+        client_nif:      document.getElementById('client-nif').value       || null,
+        client_nis:      document.getElementById('client-nis').value       || null,
+        charge:          document.getElementById('charge').value           || null,
+        secteur:         document.getElementById('secteur').value          || null,
+        mode_reglement:  document.getElementById('mode-reglement').value   || null,
+        timbre:          parseFloat(document.getElementById('timbre').value) || 0,
+        montant_lettre:  document.getElementById('montant-lettre-text').textContent || null,
+        services,
+        montant_ht:  parseNum('montant-ht'),
+        montant_tva: parseNum('montant-tva'),
+        montant_ttc: parseNum('montant-ttc'),
+        net_a_payer: parseNum('net-a-payer'),
+    };
+
+    try {
+        const res = await fetch('/api/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast('Facture sauvegardée avec succès !', 'success');
+            setTimeout(() => window.location.href = '/', 1500);
+        } else {
+            showToast(data.detail || 'Erreur lors de la sauvegarde.', 'error');
+            btn.disabled = false;
+            btn.textContent = '💾 Sauvegarder';
+        }
+    } catch (e) {
+        showToast('Erreur réseau. Vérifiez le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = '💾 Sauvegarder';
+    }
+}
+
+function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = type;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ── Number → French words ─────────────────────────────────────────────────
+function numberToFrench(n) {
+    if (n === 0) return 'zéro';
+    if (n < 0)   return 'moins ' + numberToFrench(-n);
+
+    const ones = [
+        '', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+        'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize',
+        'dix-sept', 'dix-huit', 'dix-neuf'
+    ];
+    const tens = [
+        '', 'dix', 'vingt', 'trente', 'quarante', 'cinquante',
+        'soixante', 'soixante-dix', 'quatre-vingts', 'quatre-vingt-dix'
+    ];
+
+    function belowHundred(n) {
+        if (n < 20) return ones[n];
+        const t = Math.floor(n / 10), o = n % 10;
+        if (t === 7) return 'soixante-' + ones[10 + o];
+        if (t === 8) return o === 0 ? 'quatre-vingts' : 'quatre-vingt-' + ones[o];
+        if (t === 9) return 'quatre-vingt-' + ones[10 + o];
+        return tens[t] + (o === 0 ? '' : (o === 1 ? '-et-un' : '-' + ones[o]));
+    }
+
+    function belowThousand(n) {
+        if (n < 100) return belowHundred(n);
+        const h = Math.floor(n / 100), r = n % 100;
+        const hStr = h === 1 ? 'cent' : ones[h] + ' cent' + (r === 0 && h > 1 ? 's' : '');
+        return hStr + (r > 0 ? ' ' + belowHundred(r) : '');
+    }
+
+    function convert(n) {
+        if (n === 0) return '';
+        if (n < 1000) return belowThousand(n);
+        if (n < 1000000) {
+            const t = Math.floor(n / 1000), r = n % 1000;
+            return (t === 1 ? 'mille' : belowThousand(t) + ' mille') +
+                   (r > 0 ? ' ' + belowThousand(r) : '');
+        }
+        if (n < 1000000000) {
+            const m = Math.floor(n / 1000000), r = n % 1000000;
+            return (m === 1 ? 'un million' : belowThousand(m) + ' millions') +
+                   (r > 0 ? ' ' + convert(r) : '');
+        }
+        const b = Math.floor(n / 1000000000), r = n % 1000000000;
+        return (b === 1 ? 'un milliard' : belowThousand(b) + ' milliards') +
+               (r > 0 ? ' ' + convert(r) : '');
+    }
+
+    return convert(n);
+}
+</script>
+</body>
+</html>

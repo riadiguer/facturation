@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord - EURL E-BUSINESS LAB</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            background: #f1f5f9;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        .page-header {
+            background: #1e3a5f;
+            color: white;
+            padding: 18px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,.3);
+        }
+
+        .page-header .brand { font-size: 18px; font-weight: bold; letter-spacing: .5px; }
+        .page-header .subtitle { font-size: 12px; opacity: .75; margin-top: 2px; }
+
+        .header-right { display: flex; align-items: center; gap: 12px; }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,.12);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+
+        .role-tag {
+            background: #2563eb;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .role-tag.admin { background: #d97706; }
+
+        .btn-logout {
+            background: rgba(255,255,255,.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,.3);
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background .2s;
+        }
+        .btn-logout:hover { background: rgba(255,255,255,.25); }
+
+        .btn-new {
+            background: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background .2s;
+        }
+        .btn-new:hover { background: #1d4ed8; }
+        .btn-new.purple { background: #7c3aed; }
+        .btn-new.purple:hover { background: #6d28d9; }
+        .btn-new.teal { background: #0891b2; }
+        .btn-new.teal:hover { background: #0e7490; }
+        .btn-new.orange { background: #d97706; }
+        .btn-new.orange:hover { background: #b45309; }
+        .btn-new.green { background: #059669; }
+        .btn-new.green:hover { background: #047857; }
+
+        /* ── Main ── */
+        .container {
+            max-width: 1100px;
+            margin: 28px auto;
+            padding: 0 24px;
+        }
+
+        /* ── Stats ── */
+        .stats-row {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 14px 20px;
+            flex: 1;
+            min-width: 150px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.1);
+            border-left: 4px solid #2563eb;
+        }
+        .stat-card.green  { border-left-color: #16a34a; }
+        .stat-card.orange { border-left-color: #d97706; }
+        .stat-card.purple { border-left-color: #7c3aed; }
+
+        .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #6b7280;
+            letter-spacing: .5px;
+            margin-bottom: 5px;
+        }
+        .stat-value { font-size: 24px; font-weight: bold; color: #1e293b; }
+        .stat-value.small { font-size: 16px; }
+
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 0;
+        }
+
+        .tab-btn {
+            padding: 10px 28px;
+            border: none;
+            background: none;
+            font-size: 13px;
+            font-weight: bold;
+            color: #6b7280;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: color .15s, border-color .15s;
+        }
+        .tab-btn.active { color: #1e3a5f; border-bottom-color: #2563eb; }
+        .tab-btn.purple.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+        .tab-btn.teal.active   { color: #0891b2; border-bottom-color: #0891b2; }
+        .tab-btn.orange.active { color: #d97706; border-bottom-color: #d97706; }
+        .tab-btn.green.active  { color: #059669; border-bottom-color: #059669; }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── Table card ── */
+        .table-card {
+            background: white;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.1);
+            overflow: hidden;
+        }
+
+        .table-card-header {
+            padding: 14px 22px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .table-card-header h2 { font-size: 14px; color: #1e293b; }
+
+        .search-input {
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            padding: 6px 12px;
+            font-size: 12px;
+            outline: none;
+            width: 200px;
+        }
+        .search-input:focus { border-color: #2563eb; }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead th {
+            background: #f8fafc;
+            padding: 10px 16px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6b7280;
+            letter-spacing: .5px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #f1f5f9;
+            transition: background .15s;
+        }
+        tbody tr:hover { background: #f8fafc; }
+        tbody tr:last-child { border-bottom: none; }
+
+        td { padding: 11px 16px; color: #374151; vertical-align: middle; }
+
+        .doc-num {
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .doc-num.invoice { color: #1e3a5f; }
+        .doc-num.proforma { color: #7c3aed; }
+
+        .badge-date {
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+        }
+
+        .amount { font-weight: bold; color: #16a34a; }
+
+        .btn-view {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            padding: 5px 13px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background .15s;
+        }
+        .btn-view:hover { background: #dbeafe; }
+        .btn-view.purple {
+            background: #f5f3ff;
+            color: #7c3aed;
+            border-color: #ddd6fe;
+        }
+        .btn-view.purple:hover { background: #ede9fe; }
+
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: #9ca3af;
+        }
+        .empty-state .icon { font-size: 44px; margin-bottom: 10px; }
+        .empty-state p { font-size: 13px; margin-bottom: 14px; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="page-header">
+    <div>
+        <div class="brand">EURL E-BUSINESS LAB</div>
+        <div class="subtitle">Tableau de bord</div>
+    </div>
+    <div class="header-right">
+        <div class="user-badge">
+            &#128100; {{ current_user.username }}
+            <span class="role-tag {% if current_user.role == 'admin' %}admin{% endif %}">
+                {{ current_user.role }}
+            </span>
+        </div>
+        <a href="/invoice/new"  class="btn-new">&#43; Facture</a>
+        <a href="/proforma/new" class="btn-new purple">&#43; Proforma</a>
+        <a href="/devis/new"    class="btn-new teal">&#43; Devis</a>
+        <a href="/bc/new"       class="btn-new orange">&#43; Bon de commande</a>
+        <a href="/bv/new"       class="btn-new green">&#43; Bon de versement</a>
+        {% if current_user.role == 'admin' %}
+        <a href="/admin/users" class="btn-logout" style="background:rgba(255,255,255,.12);">&#128273; Comptes</a>
+        {% endif %}
+        <a href="/logout" class="btn-logout">Déconnexion</a>
+    </div>
+</header>
+
+<!-- Main -->
+<main class="container">
+
+    <!-- Stats (admin only) -->
+    {% if current_user.role == 'admin' %}
+    {% set total_inv  = invoices      | length %}
+    {% set total_pro  = proformas     | length %}
+    {% set total_dev  = devis_list    | length %}
+    {% set total_bc   = bons_commande  | length %}
+    {% set total_bv   = bons_versement | length %}
+    {% set ht_inv     = invoices       | sum(attribute='montant_ht')  | round(2) %}
+    {% set net_inv    = invoices       | sum(attribute='net_a_payer') | round(2) %}
+    {% set ht_pro     = proformas      | sum(attribute='total_ht')    | round(2) %}
+    {% set ht_dev     = devis_list     | sum(attribute='total_ht')    | round(2) %}
+    {% set ht_bc      = bons_commande  | sum(attribute='montant_ht')  | round(2) %}
+    {% set ht_bv      = bons_versement | sum(attribute='montant_ht')  | round(2) %}
+
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-label">Factures</div>
+            <div class="stat-value">{{ total_inv }}</div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-label">CA Factures HT</div>
+            <div class="stat-value small">{{ "{:,.2f}".format(ht_inv).replace(",", " ").replace(".", ",") }} DA</div>
+        </div>
+        <div class="stat-card orange">
+            <div class="stat-label">Net à payer</div>
+            <div class="stat-value small">{{ "{:,.2f}".format(net_inv).replace(",", " ").replace(".", ",") }} DA</div>
+        </div>
+        <div class="stat-card purple">
+            <div class="stat-label">Proformas</div>
+            <div class="stat-value">{{ total_pro }}</div>
+        </div>
+        <div class="stat-card purple">
+            <div class="stat-label">CA Proformas HT</div>
+            <div class="stat-value small">{{ "{:,.2f}".format(ht_pro).replace(",", " ").replace(".", ",") }} DA</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#0891b2;">
+            <div class="stat-label">Devis</div>
+            <div class="stat-value">{{ total_dev }}</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#0891b2;">
+            <div class="stat-label">CA Devis HT</div>
+            <div class="stat-value small">{{ "{:,.2f}".format(ht_dev).replace(",", " ").replace(".", ",") }} DA</div>
+        </div>
+        <div class="stat-card orange">
+            <div class="stat-label">Bons commande</div>
+            <div class="stat-value">{{ total_bc }}</div>
+        </div>
+        <div class="stat-card orange">
+            <div class="stat-label">CA BC HT</div>
+            <div class="stat-value small">{{ "{:,.2f}".format(ht_bc).replace(",", " ").replace(".", ",") }} DA</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#059669;">
+            <div class="stat-label">Bons versement</div>
+            <div class="stat-value">{{ total_bv }}</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#059669;">
+            <div class="stat-label">CA BV HT</div>
+            <div class="stat-value small">{{ "{:,.2f}".format(ht_bv).replace(",", " ").replace(".", ",") }} DA</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('factures', this)">
+            &#128196; Factures ({{ invoices | length }})
+        </button>
+        <button class="tab-btn purple" onclick="switchTab('proformas', this)">
+            &#128203; Proformas ({{ proformas | length }})
+        </button>
+        <button class="tab-btn teal" onclick="switchTab('devis', this)">
+            &#128196; Devis ({{ devis_list | length }})
+        </button>
+        <button class="tab-btn orange" onclick="switchTab('bc', this)">
+            &#128230; Bons de commande ({{ bons_commande | length }})
+        </button>
+        <button class="tab-btn green" onclick="switchTab('bv', this)">
+            &#128176; Bons de versement ({{ bons_versement | length }})
+        </button>
+    </div>
+
+    <!-- ── Factures tab ── -->
+    <div class="tab-panel active" id="panel-factures">
+        <div class="table-card">
+            <div class="table-card-header">
+                <h2>Liste des factures</h2>
+                <input type="text" class="search-input" id="search-inv"
+                       placeholder="Rechercher..." oninput="filterTable('invoices-table','search-inv')">
+            </div>
+            {% if invoices %}
+            <table id="invoices-table">
+                <thead>
+                    <tr>
+                        <th>N° Facture</th>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Montant HT</th>
+                        <th>Net à payer</th>
+                        <th>Créé par</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
+                        <td><span class="doc-num invoice">{{ inv.facture_num }}</span></td>
+                        <td>
+                            {% if inv.facture_date %}
+                                <span class="badge-date">{{ inv.facture_date }}</span>
+                            {% else %}<span style="color:#9ca3af">—</span>{% endif %}
+                        </td>
+                        <td>{{ inv.client_doit or '—' }}</td>
+                        <td class="amount">{{ "{:,.2f}".format(inv.montant_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td class="amount">{{ "{:,.2f}".format(inv.net_a_payer or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td style="color:#6b7280; font-size:12px;">{{ inv.created_by or '—' }}</td>
+                        <td><a href="/invoice/{{ inv.id }}" class="btn-view">&#128065; Voir</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">&#128196;</div>
+                <p>Aucune facture enregistrée.</p>
+                <a href="/invoice/new" class="btn-new">&#43; Créer la première facture</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Proformas tab ── -->
+    <div class="tab-panel" id="panel-proformas">
+        <div class="table-card">
+            <div class="table-card-header">
+                <h2>Liste des proformas</h2>
+                <input type="text" class="search-input" id="search-pro"
+                       placeholder="Rechercher..." oninput="filterTable('proformas-table','search-pro')">
+            </div>
+            {% if proformas %}
+            <table id="proformas-table">
+                <thead>
+                    <tr>
+                        <th>N° Proforma</th>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Total HT</th>
+                        <th>Total TTC</th>
+                        <th>Créé par</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pro in proformas %}
+                    <tr>
+                        <td><span class="doc-num proforma">{{ pro.proforma_num }}</span></td>
+                        <td>
+                            {% if pro.proforma_date %}
+                                <span class="badge-date">{{ pro.proforma_date }}</span>
+                            {% else %}<span style="color:#9ca3af">—</span>{% endif %}
+                        </td>
+                        <td>{{ pro.client_raison or '—' }}</td>
+                        <td class="amount">{{ "{:,.2f}".format(pro.total_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td class="amount">{{ "{:,.2f}".format(pro.total_ttc or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td style="color:#6b7280; font-size:12px;">{{ pro.created_by or '—' }}</td>
+                        <td><a href="/proforma/{{ pro.id }}" class="btn-view purple">&#128065; Voir</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">&#128203;</div>
+                <p>Aucun proforma enregistré.</p>
+                <a href="/proforma/new" class="btn-new purple">&#43; Créer le premier proforma</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Bons de commande tab ── -->
+    <div class="tab-panel" id="panel-bc">
+        <div class="table-card">
+            <div class="table-card-header">
+                <h2>Liste des bons de commande</h2>
+                <input type="text" class="search-input" id="search-bc"
+                       placeholder="Rechercher..." oninput="filterTable('bc-table','search-bc')">
+            </div>
+            {% if bons_commande %}
+            <table id="bc-table">
+                <thead>
+                    <tr>
+                        <th>N° BC</th>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Montant HT</th>
+                        <th>Montant TTC</th>
+                        <th>Créé par</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bc in bons_commande %}
+                    <tr>
+                        <td><span class="doc-num" style="color:#d97706;">{{ bc.bc_num }}</span></td>
+                        <td>
+                            {% if bc.bc_date %}
+                                <span class="badge-date">{{ bc.bc_date }}</span>
+                            {% else %}<span style="color:#9ca3af">—</span>{% endif %}
+                        </td>
+                        <td>{{ bc.client_nom or '—' }}</td>
+                        <td class="amount">{{ "{:,.2f}".format(bc.montant_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td class="amount">{{ "{:,.2f}".format(bc.montant_ttc or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td style="color:#6b7280; font-size:12px;">{{ bc.created_by or '—' }}</td>
+                        <td><a href="/bc/{{ bc.id }}" class="btn-view" style="background:#fffbeb; color:#d97706; border-color:#fde68a;">&#128065; Voir</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">&#128230;</div>
+                <p>Aucun bon de commande enregistré.</p>
+                <a href="/bc/new" class="btn-new orange">&#43; Créer le premier bon de commande</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Devis tab ── -->
+    <div class="tab-panel" id="panel-devis">
+        <div class="table-card">
+            <div class="table-card-header">
+                <h2>Liste des devis</h2>
+                <input type="text" class="search-input" id="search-dev"
+                       placeholder="Rechercher..." oninput="filterTable('devis-table','search-dev')">
+            </div>
+            {% if devis_list %}
+            <table id="devis-table">
+                <thead>
+                    <tr>
+                        <th>N° Devis</th>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Total HT</th>
+                        <th>Total TTC</th>
+                        <th>Créé par</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dev in devis_list %}
+                    <tr>
+                        <td><span class="doc-num" style="color:#0891b2;">{{ dev.devis_num }}</span></td>
+                        <td>
+                            {% if dev.devis_date %}
+                                <span class="badge-date">{{ dev.devis_date }}</span>
+                            {% else %}<span style="color:#9ca3af">—</span>{% endif %}
+                        </td>
+                        <td>{{ dev.client_raison or '—' }}</td>
+                        <td class="amount">{{ "{:,.2f}".format(dev.total_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td class="amount">{{ "{:,.2f}".format(dev.total_ttc or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td style="color:#6b7280; font-size:12px;">{{ dev.created_by or '—' }}</td>
+                        <td><a href="/devis/{{ dev.id }}" class="btn-view" style="background:#ecfeff; color:#0891b2; border-color:#a5f3fc;">&#128065; Voir</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">&#128196;</div>
+                <p>Aucun devis enregistré.</p>
+                <a href="/devis/new" class="btn-new teal">&#43; Créer le premier devis</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Bons de versement tab ── -->
+    <div class="tab-panel" id="panel-bv">
+        <div class="table-card">
+            <div class="table-card-header">
+                <h2>Liste des bons de versement</h2>
+                <input type="text" class="search-input" id="search-bv"
+                       placeholder="Rechercher..." oninput="filterTable('bv-table','search-bv')">
+            </div>
+            {% if bons_versement %}
+            <table id="bv-table">
+                <thead>
+                    <tr>
+                        <th>N° BV</th>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Montant HT</th>
+                        <th>Montant TTC</th>
+                        <th>Créé par</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bv in bons_versement %}
+                    <tr>
+                        <td><span class="doc-num" style="color:#059669;">{{ bv.bv_num }}</span></td>
+                        <td>
+                            {% if bv.bv_date %}
+                                <span class="badge-date">{{ bv.bv_date }}</span>
+                            {% else %}<span style="color:#9ca3af">—</span>{% endif %}
+                        </td>
+                        <td>{{ bv.client_nom or '—' }}</td>
+                        <td class="amount">{{ "{:,.2f}".format(bv.montant_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td class="amount">{{ "{:,.2f}".format(bv.montant_ttc or 0).replace(",", " ").replace(".", ",") }} DA</td>
+                        <td style="color:#6b7280; font-size:12px;">{{ bv.created_by or '—' }}</td>
+                        <td><a href="/bv/{{ bv.id }}" class="btn-view" style="background:#ecfdf5; color:#059669; border-color:#6ee7b7;">&#128065; Voir</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">&#128176;</div>
+                <p>Aucun bon de versement enregistré.</p>
+                <a href="/bv/new" class="btn-new green">&#43; Créer le premier bon de versement</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</main>
+
+<script>
+function switchTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+}
+
+function filterTable(tableId, inputId) {
+    const q = document.getElementById(inputId).value.toLowerCase();
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+</script>
+</body>
+</html>

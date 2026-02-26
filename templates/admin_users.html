@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des utilisateurs - EURL E-BUSINESS LAB</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            background: #f1f5f9;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        .page-header {
+            background: #1e3a5f;
+            color: white;
+            padding: 18px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,.3);
+        }
+
+        .page-header .brand { font-size: 18px; font-weight: bold; }
+        .page-header .subtitle { font-size: 12px; opacity: .75; margin-top: 2px; }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,.12);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+
+        .role-tag {
+            background: #2563eb;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .role-tag.admin { background: #d97706; }
+
+        .btn-header {
+            background: rgba(255,255,255,.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,.3);
+            border-radius: 6px;
+            padding: 7px 16px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background .2s;
+        }
+        .btn-header:hover { background: rgba(255,255,255,.25); }
+
+        /* ── Main ── */
+        .container {
+            max-width: 800px;
+            margin: 36px auto;
+            padding: 0 24px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e3a5f;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ── Alert ── */
+        .alert {
+            padding: 12px 18px;
+            border-radius: 7px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .alert.success { background: #f0fdf4; border: 1px solid #86efac; color: #16a34a; }
+        .alert.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; }
+
+        /* ── User cards ── */
+        .users-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .user-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.1);
+            overflow: hidden;
+        }
+
+        .user-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 22px;
+            border-bottom: 1px solid #f1f5f9;
+            background: #f8fafc;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+        }
+        .avatar-admin { background: #d97706; }
+        .avatar-agent { background: #2563eb; }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+
+        .user-role {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        /* ── Password form ── */
+        .pw-form {
+            padding: 18px 22px;
+            display: none;
+        }
+
+        .pw-form.open { display: block; }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 160px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: bold;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            margin-bottom: 5px;
+        }
+
+        .form-group input {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 9px 12px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .form-group input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+        }
+
+        .pw-hint {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 10px;
+        }
+
+        .btn-save-pw {
+            background: #16a34a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 20px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .2s;
+        }
+        .btn-save-pw:hover { background: #15803d; }
+
+        .btn-toggle {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .btn-toggle:hover { background: #dbeafe; }
+        .btn-toggle.open  { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+        .btn-toggle.open:hover { background: #fee2e2; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="page-header">
+    <div>
+        <div class="brand">EURL E-BUSINESS LAB</div>
+        <div class="subtitle">Gestion des utilisateurs</div>
+    </div>
+    <div class="header-right">
+        <div class="user-badge">
+            &#128100; {{ current_user.username }}
+            <span class="role-tag admin">admin</span>
+        </div>
+        <a href="/" class="btn-header">&#8592; Tableau de bord</a>
+        <a href="/logout" class="btn-header">Déconnexion</a>
+    </div>
+</header>
+
+<!-- Main -->
+<main class="container">
+
+    <div class="page-title">&#128273; Gestion des comptes</div>
+
+    {% if success %}
+    <div class="alert success">&#10003; Mot de passe modifié avec succès.</div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert error">&#9888; {{ error }}</div>
+    {% endif %}
+
+    <div class="users-list">
+        {% for u in users %}
+        <div class="user-card">
+            <div class="user-card-header">
+                <div class="user-info">
+                    <div class="user-avatar {{ 'avatar-admin' if u.role == 'admin' else 'avatar-agent' }}">
+                        {{ u.username[0].upper() }}
+                    </div>
+                    <div>
+                        <div class="user-name">{{ u.username }}</div>
+                        <div class="user-role">
+                            Rôle :
+                            <strong>{{ 'Administrateur' if u.role == 'admin' else 'Agent commercial' }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-toggle" onclick="toggleForm({{ u.id }})" id="btn-{{ u.id }}">
+                    &#128274; Changer le mot de passe
+                </button>
+            </div>
+
+            <!-- Password change form -->
+            <div class="pw-form" id="form-{{ u.id }}">
+                <form method="post" action="/admin/users/{{ u.id }}/password"
+                      onsubmit="return validateForm({{ u.id }})">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nouveau mot de passe</label>
+                            <input type="password" name="new_password"
+                                   id="pw-{{ u.id }}" placeholder="Min. 6 caractères" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirmer le mot de passe</label>
+                            <input type="password" name="confirm_password"
+                                   id="cpw-{{ u.id }}" placeholder="Répéter le mot de passe" required>
+                        </div>
+                        <button type="submit" class="btn-save-pw">&#10003; Enregistrer</button>
+                    </div>
+                    <p class="pw-hint" id="hint-{{ u.id }}"></p>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</main>
+
+<script>
+function toggleForm(id) {
+    const form = document.getElementById('form-' + id);
+    const btn  = document.getElementById('btn-' + id);
+    const open = form.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    btn.textContent = open ? '✕ Annuler' : '🔒 Changer le mot de passe';
+    if (!open) {
+        form.querySelectorAll('input').forEach(i => i.value = '');
+        document.getElementById('hint-' + id).textContent = '';
+    }
+}
+
+function validateForm(id) {
+    const pw  = document.getElementById('pw-'  + id).value;
+    const cpw = document.getElementById('cpw-' + id).value;
+    const hint = document.getElementById('hint-' + id);
+
+    if (pw.length < 6) {
+        hint.textContent = 'Le mot de passe doit avoir au moins 6 caractères.';
+        hint.style.color = '#dc2626';
+        return false;
+    }
+    if (pw !== cpw) {
+        hint.textContent = 'Les mots de passe ne correspondent pas.';
+        hint.style.color = '#dc2626';
+        return false;
+    }
+    return true;
+}
+</script>
+</body>
+</html>

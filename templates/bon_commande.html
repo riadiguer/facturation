@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bon de Commande {{ bc_num }} - EURL E-BUSINESS LAB</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        @page { size: A4; margin: 0; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; margin: 0; padding: 0; }
+            .invoice {
+                box-shadow: none;
+                margin: 0;
+                padding: 12mm 15mm;
+                width: 100%;
+                min-height: 297mm;
+                height: auto;
+                background-image: none;
+            }
+            input, textarea {
+                border-color: transparent !important;
+            }
+            .summary-section,
+            .footer {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            #lignes-body tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            background: #d1d5db;
+            padding: 20px;
+        }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            text-align: center;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 22px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            transition: opacity .2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { opacity: .85; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-save    { background: #16a34a; color: white; }
+        .btn-back    { background: #6b7280; color: white; }
+        .btn-logout  { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+        .btn-logout:hover { background: #f3f4f6; }
+        .btn-danger  { background: #dc2626; color: white; font-size: 11px; padding: 3px 8px; border-radius: 3px; cursor: pointer; border: none; }
+        .btn-add     { background: #d97706; color: white; font-size: 11px; padding: 5px 12px; border-radius: 3px; cursor: pointer; border: none; }
+
+        .user-info {
+            font-size: 12px;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .role-tag {
+            background: #2563eb;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .role-tag.admin { background: #d97706; }
+
+        /* ── A4 wrapper ── */
+        .invoice {
+            background: white;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 10mm 15mm 10mm;
+            box-shadow: 0 4px 20px rgba(0,0,0,.35);
+            display: flex;
+            flex-direction: column;
+            background-image: repeating-linear-gradient(
+                to bottom,
+                transparent 0,
+                transparent calc(297mm - 2px),
+                #bbb calc(297mm - 2px),
+                #bbb 297mm
+            );
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .company-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .company-desc {
+            font-size: 9px;
+            line-height: 1.5;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .company-contact {
+            font-size: 10px;
+            margin-top: 3px;
+            line-height: 1.6;
+        }
+
+        .separator {
+            border: none;
+            border-top: 2px solid #000;
+            margin: 6px 0;
+        }
+
+        /* ── Document title ── */
+        .doc-title {
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 8px 0 10px;
+        }
+
+        /* ── N° + Date row ── */
+        .num-date-row {
+            display: flex;
+            border: 1px solid #000;
+            margin-bottom: 8px;
+        }
+
+        .num-cell {
+            flex: 1;
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-right: 1px solid #000;
+        }
+        .num-cell:last-child { border-right: none; }
+
+        .num-label {
+            font-weight: bold;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+
+        .num-input {
+            border: none;
+            border-bottom: 1px solid #000;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            flex: 1;
+            padding: 1px 4px;
+            background: transparent;
+        }
+
+        /* ── Two-column info section ── */
+        .info-section {
+            display: flex;
+            border: 1px solid #000;
+            margin-bottom: 8px;
+        }
+
+        .info-company {
+            flex: 1;
+            padding: 10px 12px;
+            border-right: 1px solid #000;
+            font-size: 10px;
+            line-height: 1.8;
+        }
+
+        .info-company strong {
+            font-size: 11px;
+        }
+
+        .info-client {
+            flex: 1;
+            padding: 8px 12px;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .field-row-2 {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .field-row-2 .sub-field {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+
+        .field-label {
+            font-weight: bold;
+            white-space: nowrap;
+            font-size: 10px;
+            margin-right: 4px;
+        }
+
+        .field-input {
+            border: none;
+            border-bottom: 1px solid #000;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            flex: 1;
+            padding: 1px 3px;
+            min-width: 0;
+            background: transparent;
+        }
+
+        /* ── Details label ── */
+        .details-label {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        /* ── Table ── */
+        .services-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 4px;
+        }
+
+        .services-table th {
+            background: white;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #000;
+            padding: 6px 4px;
+            font-size: 11px;
+        }
+
+        .services-table td {
+            border: 1px solid #000;
+            padding: 2px 4px;
+            vertical-align: middle;
+        }
+
+        .col-desc  { width: 38%; }
+        .col-qty   { width: 12%; }
+        .col-pu    { width: 16%; }
+        .col-taxes { width: 14%; }
+        .col-mont  { width: 20%; }
+
+        .services-table td textarea {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            resize: none;
+            background: transparent;
+            min-height: 22px;
+            display: block;
+        }
+
+        .services-table td input[type="number"],
+        .services-table td input[type="text"] {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            text-align: right;
+            background: transparent;
+            padding: 1px 2px;
+        }
+
+        .taxes-input { text-align: center !important; }
+
+        .mont-val {
+            display: block;
+            text-align: right;
+            font-size: 10px;
+            padding: 1px 4px;
+        }
+
+        /* ── Summary ── */
+        .summary-section {
+            display: flex;
+            border: 1px solid #000;
+            margin: 6px 0;
+        }
+
+        .montant-lettre {
+            flex: 1.2;
+            padding: 8px 10px;
+            border-right: 1px solid #000;
+        }
+
+        .ml-label {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+
+        .ml-text {
+            font-size: 10px;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        .totals-table {
+            border-collapse: collapse;
+            min-width: 220px;
+        }
+
+        .totals-table td {
+            border: 1px solid #000;
+            padding: 5px 8px;
+            font-size: 11px;
+        }
+
+        .t-label      { font-weight: bold; min-width: 140px; }
+        .t-label.bold { font-weight: bold; }
+        .t-value      { min-width: 80px; text-align: right; }
+
+        /* ── Mode de règlement ── */
+        .mode-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0 6px;
+            gap: 6px;
+        }
+
+        .mode-label {
+            font-weight: bold;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: auto;
+            padding-top: 8px;
+            border-top: 1px solid #000;
+            text-align: center;
+            font-size: 9px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        /* ── Toast ── */
+        #toast {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 28px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,.3);
+        }
+        #toast.success { background: #16a34a; }
+        #toast.error   { background: #dc2626; }
+    </style>
+</head>
+<body>
+
+<!-- ── Injected server data ── -->
+<script>
+    const BC_NUM    = {{ bc_num | tojson }};
+    const BC_DATA   = {{ bc | tojson if bc else 'null' }};
+    const IS_READONLY = {{ 'true' if readonly else 'false' }};
+</script>
+
+<!-- Toolbar -->
+<div class="toolbar no-print">
+    <a href="/" class="btn btn-back">&#8592; Retour à la liste</a>
+    <button class="btn btn-primary" onclick="window.print()">&#128438; Imprimer / PDF</button>
+    {% if not readonly %}
+    <button class="btn btn-save" id="btn-save" onclick="saveBC()">&#128190; Sauvegarder</button>
+    {% endif %}
+    {% if readonly and creator %}
+    <span class="user-info" style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:5px 12px; color:#16a34a;">
+        &#9997; Créé par&nbsp;<strong>{{ creator }}</strong>
+    </span>
+    {% endif %}
+    <span class="user-info">
+        &#128100; {{ current_user.username }}
+        <span class="role-tag {% if current_user.role == 'admin' %}admin{% endif %}">{{ current_user.role }}</span>
+    </span>
+    <a href="/logout" class="btn btn-logout">Déconnexion</a>
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<div class="invoice">
+
+    <!-- ══ HEADER ══ -->
+    <div class="header">
+        <div class="company-name">EURL E- BUSINESS LAB</div>
+        <div class="company-desc">
+            Entreprise Algerienne spécialisée dans l'accompagnement stratégique, le marketing,
+            le développement et les solution digitaux.
+        </div>
+        <div class="company-contact">
+            &#128204; Rue colonel Amirouche Bordj el Kiffan, Bab ezzouar, Alger, Algerie<br>
+            Tel : 0.20.19.19.63
+        </div>
+    </div>
+
+    <hr class="separator">
+
+    <!-- ══ DOCUMENT TITLE ══ -->
+    <div class="doc-title">Bon de Commande</div>
+
+    <!-- ══ N° + DATE ══ -->
+    <div class="num-date-row">
+        <div class="num-cell">
+            <span class="num-label">N° de Commande :</span>
+            <input type="text" class="num-input" id="bc-num" readonly>
+        </div>
+        <div class="num-cell">
+            <span class="num-label">DATE :</span>
+            <input type="date" class="num-input" id="bc-date">
+        </div>
+    </div>
+
+    <!-- ══ COMPANY + CLIENT INFO ══ -->
+    <div class="info-section">
+        <!-- Company (fixed) -->
+        <div class="info-company">
+            <strong>Au nom de: E BUSINESS LAB</strong><br>
+            RC : 25B1054070 - 16/00.&nbsp;&nbsp; NIS : 0025163002578 41<br>
+            NIF : 002516105407061.&nbsp;&nbsp; AI: 16300214211<br>
+            Adresse : Rue colonel Amirouche Bordj el Kiffan,<br>
+            Bab ezzouar, Alger, Algerie<br>
+            Téléphone : 0.20.19.19.63 / 0550 36 19 92<br>
+            E-mail : e.businesslab.dz@gmail.com
+        </div>
+        <!-- Client (editable) -->
+        <div class="info-client">
+            <div class="field-row">
+                <span class="field-label">Adressé à :</span>
+                <input type="text" class="field-input" id="client-adresse-a">
+            </div>
+            <div class="field-row">
+                <span class="field-label">Nom client :</span>
+                <input type="text" class="field-input" id="client-nom">
+            </div>
+            <div class="field-row-2">
+                <div class="sub-field">
+                    <span class="field-label">RC :</span>
+                    <input type="text" class="field-input" id="client-rc">
+                </div>
+                <div class="sub-field">
+                    <span class="field-label">NIF :</span>
+                    <input type="text" class="field-input" id="client-nif">
+                </div>
+            </div>
+            <div class="field-row-2">
+                <div class="sub-field">
+                    <span class="field-label">NIS :</span>
+                    <input type="text" class="field-input" id="client-nis">
+                </div>
+                <div class="sub-field">
+                    <span class="field-label">ART :</span>
+                    <input type="text" class="field-input" id="client-art">
+                </div>
+            </div>
+            <div class="field-row">
+                <span class="field-label">Téléphone :</span>
+                <input type="text" class="field-input" id="client-tel">
+            </div>
+            <div class="field-row">
+                <span class="field-label">Adresse :</span>
+                <input type="text" class="field-input" id="client-adresse">
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ TABLE LABEL ══ -->
+    <div class="details-label">Détails de la commande :</div>
+
+    <!-- ══ ITEMS TABLE ══ -->
+    <table class="services-table">
+        <thead>
+            <tr>
+                <th class="col-desc">DESCRIPTION</th>
+                <th class="col-qty">QUANTITE</th>
+                <th class="col-pu">PRIX UNITAIRE</th>
+                <th class="col-taxes">TAXES</th>
+                <th class="col-mont">MONTANT</th>
+                <th class="no-print" style="border: 1px solid transparent; width: 36px;"></th>
+            </tr>
+        </thead>
+        <tbody id="lignes-body"></tbody>
+    </table>
+
+    <div class="no-print" style="margin-bottom: 6px;" id="add-row-btn">
+        <button class="btn-add" onclick="addLigne()">+ Ajouter une ligne</button>
+    </div>
+
+    <!-- ══ SUMMARY ══ -->
+    <div class="summary-section">
+        <div class="montant-lettre">
+            <div class="ml-label">Montant en lettre :</div>
+            <div class="ml-text" id="montant-lettre-text"></div>
+        </div>
+        <table class="totals-table">
+            <tr>
+                <td class="t-label">Montant HT</td>
+                <td class="t-value"><span id="montant-ht">0,00</span></td>
+            </tr>
+            <tr>
+                <td class="t-label">Montant TVA (19%)</td>
+                <td class="t-value"><span id="montant-tva">0,00</span></td>
+            </tr>
+            <tr>
+                <td class="t-label bold">Montant TTC</td>
+                <td class="t-value"><strong><span id="montant-ttc">0,00</span></strong></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ══ MODE DE RÈGLEMENT ══ -->
+    <div class="mode-row">
+        <span class="mode-label">Mode de règlement :</span>
+        <input type="text" class="field-input" id="mode-reglement" style="max-width: 300px;">
+    </div>
+
+    <!-- ══ FOOTER ══ -->
+    <div class="footer">
+        EURL E-BUSINESS LAB &mdash; Rue colonel Amirouche Bordj el Kiffan, Bab ezzouar, Alger, Algerie &mdash;
+        Tel : 0.20.19.19.63 &mdash; e.businesslab.dz@gmail.com
+    </div>
+
+</div><!-- .invoice -->
+
+<script>
+// ── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('bc-num').value = BC_NUM;
+
+    if (BC_DATA) {
+        setVal('bc-date',          BC_DATA.bc_date          || '');
+        setVal('client-adresse-a', BC_DATA.client_adresse_a || '');
+        setVal('client-nom',       BC_DATA.client_nom       || '');
+        setVal('client-rc',        BC_DATA.client_rc        || '');
+        setVal('client-nif',       BC_DATA.client_nif       || '');
+        setVal('client-nis',       BC_DATA.client_nis       || '');
+        setVal('client-art',       BC_DATA.client_art       || '');
+        setVal('client-tel',       BC_DATA.client_tel       || '');
+        setVal('client-adresse',   BC_DATA.client_adresse   || '');
+        setVal('mode-reglement',   BC_DATA.mode_reglement   || '');
+
+        const lignes = BC_DATA.lignes || [];
+        if (lignes.length > 0) {
+            lignes.forEach(l => addLigne(l.description, l.quantite, l.prix_unitaire, l.taxes));
+        } else {
+            addLigne(); addLigne(); addLigne();
+        }
+    } else {
+        document.getElementById('bc-date').value = today();
+        addLigne(); addLigne(); addLigne();
+    }
+
+    if (IS_READONLY) {
+        document.querySelectorAll('.invoice input, .invoice textarea').forEach(el => {
+            el.setAttribute('readonly', true);
+            el.style.cursor = 'default';
+        });
+        document.getElementById('add-row-btn').style.display = 'none';
+        document.querySelectorAll('.btn-danger').forEach(b => b.style.display = 'none');
+    }
+
+    calculateTotals();
+});
+
+function setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+}
+
+function today() {
+    return new Date().toISOString().split('T')[0];
+}
+
+// ── Row management ────────────────────────────────────────────────────────
+function addLigne(desc = '', qty = '', pu = '', taxes = 'TVA 19%') {
+    const tbody = document.getElementById('lignes-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="col-desc">
+            <textarea rows="2" class="desc-input" oninput="autoResize(this)">${escHtml(desc)}</textarea>
+        </td>
+        <td class="col-qty">
+            <input type="number" class="qty-input" min="0" step="1"
+                   value="${qty !== '' ? qty : ''}" placeholder="1" oninput="recalcRow(this)">
+        </td>
+        <td class="col-pu">
+            <input type="number" class="pu-input" min="0" step="0.01"
+                   value="${pu !== '' ? pu : ''}" placeholder="0.00" oninput="recalcRow(this)">
+        </td>
+        <td class="col-taxes">
+            <input type="text" class="taxes-input" value="${escHtml(taxes)}" placeholder="TVA 19%">
+        </td>
+        <td class="col-mont">
+            <span class="mont-val">0,00</span>
+        </td>
+        <td class="no-print" style="border: 1px solid transparent; vertical-align: middle; padding: 2px 4px;">
+            <button class="btn-danger" onclick="removeRow(this)">&#10005;</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    const qtyVal = parseFloat(qty) || 0;
+    const puVal  = parseFloat(pu)  || 0;
+    tr.querySelector('.mont-val').textContent = fmt(qtyVal * puVal);
+    calculateTotals();
+}
+
+function removeRow(btn) {
+    btn.closest('tr').remove();
+    calculateTotals();
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function recalcRow(inp) {
+    const tr  = inp.closest('tr');
+    const qty = parseFloat(tr.querySelector('.qty-input')?.value) || 0;
+    const pu  = parseFloat(tr.querySelector('.pu-input')?.value)  || 0;
+    tr.querySelector('.mont-val').textContent = fmt(qty * pu);
+    calculateTotals();
+}
+
+// ── Calculations ──────────────────────────────────────────────────────────
+function calculateTotals() {
+    let ht = 0;
+    document.querySelectorAll('#lignes-body tr').forEach(tr => {
+        const qty = parseFloat(tr.querySelector('.qty-input')?.value) || 0;
+        const pu  = parseFloat(tr.querySelector('.pu-input')?.value)  || 0;
+        const mont = qty * pu;
+        const span = tr.querySelector('.mont-val');
+        if (span) span.textContent = fmt(mont);
+        ht += mont;
+    });
+
+    const tva = ht * 0.19;
+    const ttc = ht + tva;
+
+    document.getElementById('montant-ht').textContent  = fmt(ht);
+    document.getElementById('montant-tva').textContent = fmt(tva);
+    document.getElementById('montant-ttc').textContent = fmt(ttc);
+
+    const cents = Math.round((ttc % 1) * 100);
+    let words = numberToFrench(Math.floor(ttc)) + ' dinars algériens';
+    if (cents > 0) words += ' et ' + numberToFrench(cents) + ' centimes';
+    document.getElementById('montant-lettre-text').textContent =
+        words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function fmt(n) {
+    return n.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseDisp(id) {
+    const text = document.getElementById(id).textContent
+        .replace(/[^0-9,]/g, '')
+        .replace(',', '.');
+    return parseFloat(text) || 0;
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────
+async function saveBC() {
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.textContent = 'Sauvegarde...';
+
+    const lignes = [];
+    document.querySelectorAll('#lignes-body tr').forEach(tr => {
+        const ta  = tr.querySelector('.desc-input');
+        const qty = parseFloat(tr.querySelector('.qty-input')?.value) || 0;
+        const pu  = parseFloat(tr.querySelector('.pu-input')?.value)  || 0;
+        const tax = tr.querySelector('.taxes-input')?.value || 'TVA 19%';
+        lignes.push({
+            description:   ta?.value    || '',
+            quantite:      qty,
+            prix_unitaire: pu,
+            taxes:         tax,
+            montant:       qty * pu
+        });
+    });
+
+    const payload = {
+        bc_num:           document.getElementById('bc-num').value,
+        bc_date:          document.getElementById('bc-date').value         || null,
+        client_adresse_a: document.getElementById('client-adresse-a').value || null,
+        client_nom:       document.getElementById('client-nom').value      || null,
+        client_rc:        document.getElementById('client-rc').value       || null,
+        client_nif:       document.getElementById('client-nif').value      || null,
+        client_nis:       document.getElementById('client-nis').value      || null,
+        client_art:       document.getElementById('client-art').value      || null,
+        client_tel:       document.getElementById('client-tel').value      || null,
+        client_adresse:   document.getElementById('client-adresse').value  || null,
+        mode_reglement:   document.getElementById('mode-reglement').value  || null,
+        montant_lettre:   document.getElementById('montant-lettre-text').textContent || null,
+        lignes,
+        montant_ht:  parseDisp('montant-ht'),
+        montant_tva: parseDisp('montant-tva'),
+        montant_ttc: parseDisp('montant-ttc'),
+    };
+
+    try {
+        const res  = await fetch('/api/bons-commande', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast('Bon de commande sauvegardé avec succès !', 'success');
+            setTimeout(() => window.location.href = '/', 1500);
+        } else {
+            showToast(data.detail || 'Erreur lors de la sauvegarde.', 'error');
+            btn.disabled = false;
+            btn.textContent = '💾 Sauvegarder';
+        }
+    } catch (e) {
+        showToast('Erreur réseau. Vérifiez le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = '💾 Sauvegarder';
+    }
+}
+
+function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = type;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ── Number → French words ─────────────────────────────────────────────────
+function numberToFrench(n) {
+    if (n === 0) return 'zéro';
+    if (n < 0)   return 'moins ' + numberToFrench(-n);
+    const ones = ['','un','deux','trois','quatre','cinq','six','sept','huit','neuf',
+        'dix','onze','douze','treize','quatorze','quinze','seize',
+        'dix-sept','dix-huit','dix-neuf'];
+    const tens = ['','dix','vingt','trente','quarante','cinquante',
+        'soixante','soixante-dix','quatre-vingts','quatre-vingt-dix'];
+    function belowHundred(n) {
+        if (n < 20) return ones[n];
+        const t = Math.floor(n/10), o = n%10;
+        if (t===7) return 'soixante-'+ones[10+o];
+        if (t===8) return o===0?'quatre-vingts':'quatre-vingt-'+ones[o];
+        if (t===9) return 'quatre-vingt-'+ones[10+o];
+        return tens[t]+(o===0?'':(o===1?'-et-un':'-'+ones[o]));
+    }
+    function belowThousand(n) {
+        if (n<100) return belowHundred(n);
+        const h=Math.floor(n/100), r=n%100;
+        const hStr=h===1?'cent':ones[h]+' cent'+(r===0&&h>1?'s':'');
+        return hStr+(r>0?' '+belowHundred(r):'');
+    }
+    function convert(n) {
+        if (n===0) return '';
+        if (n<1000) return belowThousand(n);
+        if (n<1000000) {
+            const t=Math.floor(n/1000),r=n%1000;
+            return (t===1?'mille':belowThousand(t)+' mille')+(r>0?' '+belowThousand(r):'');
+        }
+        if (n<1000000000) {
+            const m=Math.floor(n/1000000),r=n%1000000;
+            return (m===1?'un million':belowThousand(m)+' millions')+(r>0?' '+convert(r):'');
+        }
+        const b=Math.floor(n/1000000000),r=n%1000000000;
+        return (b===1?'un milliard':belowThousand(b)+' milliards')+(r>0?' '+convert(r):'');
+    }
+    return convert(n);
+}
+</script>
+</body>
+</html>
