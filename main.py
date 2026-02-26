@@ -528,9 +528,80 @@ async def admin_users(request: Request):
         "request":      request,
         "users":        users,
         "current_user": user,
-        "success":      request.query_params.get("success"),
+        "success":      request.query_params.get("success"),  # "1", "created", "deleted"
         "error":        request.query_params.get("error"),
     })
+
+
+@app.post("/admin/users/create", response_class=HTMLResponse)
+async def create_user(request: Request):
+    current = session_user(request)
+    if not current:
+        return RedirectResponse(url="/login", status_code=302)
+    if current["role"] != "admin":
+        return RedirectResponse(url="/", status_code=302)
+
+    form = await request.form()
+    username = str(form.get("username", "")).strip().lower()
+    password = str(form.get("password", "")).strip()
+    confirm  = str(form.get("confirm_password", "")).strip()
+    role     = str(form.get("role", "agent")).strip()
+
+    if not username or len(username) < 3:
+        return RedirectResponse(
+            url="/admin/users?error=Le+nom+d%27utilisateur+doit+avoir+au+moins+3+caractères",
+            status_code=302
+        )
+    if role not in ("admin", "agent"):
+        return RedirectResponse(
+            url="/admin/users?error=Rôle+invalide",
+            status_code=302
+        )
+    if len(password) < 6:
+        return RedirectResponse(
+            url="/admin/users?error=Le+mot+de+passe+doit+avoir+au+moins+6+caractères",
+            status_code=302
+        )
+    if password != confirm:
+        return RedirectResponse(
+            url="/admin/users?error=Les+mots+de+passe+ne+correspondent+pas",
+            status_code=302
+        )
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)",
+            (username, hash_password(password), role)
+        )
+        conn.commit()
+        conn.close()
+        return RedirectResponse(url="/admin/users?success=created", status_code=302)
+    except psycopg2.IntegrityError:
+        conn.close()
+        return RedirectResponse(
+            url="/admin/users?error=Ce+nom+d%27utilisateur+existe+déjà",
+            status_code=302
+        )
+
+
+@app.post("/admin/users/{user_id}/delete", response_class=HTMLResponse)
+async def delete_user(request: Request, user_id: int):
+    current = session_user(request)
+    if not current:
+        return RedirectResponse(url="/login", status_code=302)
+    if current["role"] != "admin":
+        return RedirectResponse(url="/", status_code=302)
+    if current["id"] == user_id:
+        return RedirectResponse(
+            url="/admin/users?error=Vous+ne+pouvez+pas+supprimer+votre+propre+compte",
+            status_code=302
+        )
+    conn = get_db()
+    conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/admin/users?success=deleted", status_code=302)
 
 
 @app.post("/admin/users/{user_id}/password", response_class=HTMLResponse)

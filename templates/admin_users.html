@@ -232,6 +232,90 @@
         .btn-toggle:hover { background: #dbeafe; }
         .btn-toggle.open  { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
         .btn-toggle.open:hover { background: #fee2e2; }
+
+        /* ── Create user card ── */
+        .create-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.1);
+            overflow: hidden;
+            margin-bottom: 28px;
+            border: 2px dashed #bfdbfe;
+        }
+
+        .create-card-header {
+            background: #eff6ff;
+            padding: 14px 22px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #1e3a5f;
+            border-bottom: 1px solid #bfdbfe;
+        }
+
+        .create-form {
+            padding: 20px 22px;
+        }
+
+        .create-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .create-row .form-group { min-width: 150px; }
+
+        .form-group select {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 9px 12px;
+            font-size: 13px;
+            outline: none;
+            background: white;
+            transition: border-color .2s;
+        }
+        .form-group select:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+        }
+
+        .btn-create {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 22px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .2s;
+        }
+        .btn-create:hover { background: #1d4ed8; }
+
+        .btn-delete {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background .15s;
+            margin-left: 8px;
+        }
+        .btn-delete:hover { background: #fee2e2; }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
@@ -257,14 +341,55 @@
 
     <div class="page-title">&#128273; Gestion des comptes</div>
 
-    {% if success %}
+    {% if success == '1' %}
     <div class="alert success">&#10003; Mot de passe modifié avec succès.</div>
+    {% elif success == 'created' %}
+    <div class="alert success">&#10003; Compte créé avec succès.</div>
+    {% elif success == 'deleted' %}
+    <div class="alert success">&#10003; Compte supprimé.</div>
     {% endif %}
 
     {% if error %}
     <div class="alert error">&#9888; {{ error }}</div>
     {% endif %}
 
+    <!-- ── Create new account ── -->
+    <div class="create-card">
+        <div class="create-card-header">&#43; Créer un nouveau compte</div>
+        <div class="create-form">
+            <form method="post" action="/admin/users/create" onsubmit="return validateCreate()">
+                <div class="create-row">
+                    <div class="form-group">
+                        <label>Nom d'utilisateur</label>
+                        <input type="text" name="username" id="new-username"
+                               placeholder="ex: agent2" minlength="3" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Rôle</label>
+                        <select name="role" id="new-role">
+                            <option value="agent">Agent commercial</option>
+                            <option value="admin">Administrateur</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Mot de passe</label>
+                        <input type="password" name="password" id="new-pw"
+                               placeholder="Min. 6 caractères" minlength="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirmer</label>
+                        <input type="password" name="confirm_password" id="new-cpw"
+                               placeholder="Répéter" required>
+                    </div>
+                    <button type="submit" class="btn-create">&#43; Créer le compte</button>
+                </div>
+                <p class="pw-hint" id="create-hint" style="color:#dc2626;"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Existing accounts ── -->
+    <div class="section-title">Comptes existants ({{ users | length }})</div>
     <div class="users-list">
         {% for u in users %}
         <div class="user-card">
@@ -281,9 +406,17 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn-toggle" onclick="toggleForm({{ u.id }})" id="btn-{{ u.id }}">
-                    &#128274; Changer le mot de passe
-                </button>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <button class="btn-toggle" onclick="toggleForm({{ u.id }})" id="btn-{{ u.id }}">
+                        &#128274; Changer le mot de passe
+                    </button>
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/delete"
+                          onsubmit="return confirm('Supprimer le compte « {{ u.username }} » ?')">
+                        <button type="submit" class="btn-delete">&#128465; Supprimer</button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- Password change form -->
@@ -323,6 +456,22 @@ function toggleForm(id) {
         form.querySelectorAll('input').forEach(i => i.value = '');
         document.getElementById('hint-' + id).textContent = '';
     }
+}
+
+function validateCreate() {
+    const pw   = document.getElementById('new-pw').value;
+    const cpw  = document.getElementById('new-cpw').value;
+    const hint = document.getElementById('create-hint');
+    if (pw.length < 6) {
+        hint.textContent = 'Le mot de passe doit avoir au moins 6 caractères.';
+        return false;
+    }
+    if (pw !== cpw) {
+        hint.textContent = 'Les mots de passe ne correspondent pas.';
+        return false;
+    }
+    hint.textContent = '';
+    return true;
 }
 
 function validateForm(id) {
