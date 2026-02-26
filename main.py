@@ -8,6 +8,7 @@ from psycopg2.extras import RealDictCursor
 import json
 from datetime import datetime
 import os
+import urllib.parse
 
 import hashlib
 import hmac
@@ -71,7 +72,14 @@ class _DB:
 
 
 def get_db() -> _DB:
-    conn = psycopg2.connect(DATABASE_URL)
+    url = urllib.parse.urlparse(DATABASE_URL)
+    conn = psycopg2.connect(
+        host=url.hostname,
+        port=url.port or 5432,
+        database=url.path.lstrip("/"),
+        user=url.username,
+        password=urllib.parse.unquote(url.password or ""),
+    )
     return _DB(conn)
 
 
