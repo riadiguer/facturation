@@ -24,7 +24,7 @@ templates = Jinja2Templates(directory="templates")
 _ITERATIONS = 260_000
 
 # ── Database URL ─────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
 
 def hash_password(password: str) -> str:
