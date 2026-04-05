@@ -423,10 +423,21 @@
 <body>
 
 <!-- ── Injected server data ── -->
+<script type="application/json" id="devis-data">
+{
+    "DEVIS_NUM": {{ devis_num | tojson }},
+    "DEVIS_DATA": {{ devis | tojson if devis else 'null' }},
+    "IS_READONLY": {{ readonly | tojson }},
+    "AUTO_EDIT": {{ auto_edit | default(false) | tojson }}
+}
+</script>
 <script>
-    const DEVIS_NUM  = {{ devis_num | tojson }};
-    const DEVIS_DATA = {{ devis | tojson if devis else 'null' }};
-    const IS_READONLY = {{ 'true' if readonly else 'false' }};
+const data = JSON.parse(document.getElementById('devis-data').textContent);
+const DEVIS_NUM = data.DEVIS_NUM;
+const DEVIS_DATA = data.DEVIS_DATA;
+const IS_READONLY = data.IS_READONLY;
+const AUTO_EDIT = data.AUTO_EDIT;
+const DEVIS_ID = DEVIS_DATA ? DEVIS_DATA.id : null;
 </script>
 
 <!-- Toolbar -->
@@ -435,6 +446,10 @@
     <button class="btn btn-primary" onclick="window.print()">&#128438; Imprimer / PDF</button>
     {% if not readonly %}
     <button class="btn btn-save" id="btn-save" onclick="saveDevis()">&#128190; Sauvegarder</button>
+    {% endif %}
+    {% if readonly and current_user.role == 'admin' %}
+    <button class="btn btn-primary" id="btn-edit" onclick="enableEdit()">&#9998; Modifier</button>
+    <button class="btn btn-save" id="btn-save-edit" style="display:none" onclick="saveEdit()">&#128190; Enregistrer les modifications</button>
     {% endif %}
     {% if readonly and creator %}
     <span class="user-info" style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:5px 12px; color:#16a34a;">
@@ -579,8 +594,14 @@
                 </td>
                 <td class="t-value"><span id="remise-montant">0,00</span> DA</td>
             </tr>
-            <tr>
-                <td class="t-label">TVA 19%</td>
+            <tr id="tva-row">
+                <td class="t-label">
+                    <span id="tva-label">TVA 19%</span>
+                    <button id="btn-toggle-tva" onclick="toggleTva()" title="Supprimer la TVA"
+                            style="display:none; margin-left:8px; border:none; background:#fee2e2;
+                                   color:#dc2626; border-radius:3px; cursor:pointer;
+                                   font-size:10px; padding:1px 6px; font-weight:bold;">&#10005;</button>
+                </td>
                 <td class="t-value"><span id="montant-tva">0,00</span> DA</td>
             </tr>
             <tr>
@@ -644,6 +665,35 @@
 </div><!-- .invoice -->
 
 <script>
+// ── TVA toggle ────────────────────────────────────────────────────────────
+let tvaEnabled = true;
+
+function updateTvaUI() {
+    const btn   = document.getElementById('btn-toggle-tva');
+    const label = document.getElementById('tva-label');
+    if (tvaEnabled) {
+        btn.textContent      = '✕';
+        btn.title            = 'Supprimer la TVA';
+        btn.style.background = '#fee2e2';
+        btn.style.color      = '#dc2626';
+        label.style.textDecoration = '';
+        label.style.color          = '';
+    } else {
+        btn.textContent      = '+';
+        btn.title            = 'Appliquer la TVA';
+        btn.style.background = '#dcfce7';
+        btn.style.color      = '#16a34a';
+        label.style.textDecoration = 'line-through';
+        label.style.color          = '#9ca3af';
+    }
+}
+
+function toggleTva() {
+    tvaEnabled = !tvaEnabled;
+    updateTvaUI();
+    calculateTotals();
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('devis-num').value = DEVIS_NUM;
@@ -679,6 +729,12 @@ document.addEventListener('DOMContentLoaded', () => {
         addLigne(); addLigne(); addLigne();
     }
 
+    // Restore TVA state from saved data
+    if (DEVIS_DATA && DEVIS_DATA.apply_tva === 0) {
+        tvaEnabled = false;
+    }
+    updateTvaUI();
+
     if (IS_READONLY) {
         document.querySelectorAll('.invoice input, .invoice textarea').forEach(el => {
             el.setAttribute('readonly', true);
@@ -686,9 +742,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.getElementById('add-row-btn').style.display = 'none';
         document.querySelectorAll('.btn-danger').forEach(b => b.style.display = 'none');
+    } else {
+        document.getElementById('btn-toggle-tva').style.display = 'inline';
     }
 
     calculateTotals();
+
+    if (AUTO_EDIT) enableEdit();
 });
 
 function setVal(id, val) {
@@ -775,7 +835,7 @@ function calculateTotals() {
     const remisePct     = parseFloat(document.getElementById('remise-pct').value) || 0;
     const remiseMnt     = totalHt * remisePct / 100;
     const baseImposable = totalHt - remiseMnt;
-    const tva           = baseImposable * 0.19;
+    const tva           = tvaEnabled ? baseImposable * 0.19 : 0;
     const ttc           = baseImposable + tva;
 
     document.getElementById('total-ht').textContent       = fmt(totalHt);
@@ -841,6 +901,7 @@ async function saveDevis() {
         remise_montant: parseDisp('remise-montant'),
         montant_tva:    parseDisp('montant-tva'),
         total_ttc:      parseDisp('total-ttc'),
+        apply_tva:      tvaEnabled,
     };
 
     try {
@@ -871,6 +932,83 @@ function showToast(msg, type) {
     t.className = type;
     t.style.display = 'block';
     setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ── Edit (admin only) ─────────────────────────────────────────────────────
+function enableEdit() {
+    document.querySelectorAll('.invoice input, .invoice textarea').forEach(el => {
+        el.removeAttribute('readonly');
+        el.style.cursor = '';
+    });
+    document.getElementById('add-row-btn').style.display = '';
+    document.querySelectorAll('.btn-danger').forEach(b => b.style.display = '');
+    document.getElementById('btn-toggle-tva').style.display = 'inline';
+    document.getElementById('btn-edit').style.display = 'none';
+    document.getElementById('btn-save-edit').style.display = '';
+}
+
+async function saveEdit() {
+    const btn = document.getElementById('btn-save-edit');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+
+    const lignes = [];
+    document.querySelectorAll('#lignes-body tr').forEach(tr => {
+        const ref  = tr.querySelector('.ref-input')?.value || '';
+        const ta   = tr.querySelector('textarea');
+        const pu   = parseFloat(tr.querySelector('.pu-input')?.value)  || 0;
+        const qty  = parseFloat(tr.querySelector('.qty-input')?.value) || 0;
+        lignes.push({ reference: ref, description: ta?.value || '', pu_ht: pu, quantite: qty, montant_ht: pu * qty });
+    });
+
+    const payload = {
+        devis_num:      document.getElementById('devis-num').value,
+        devis_date:     document.getElementById('devis-date').value     || null,
+        client_code:    document.getElementById('client-code').value    || null,
+        client_raison:  document.getElementById('client-raison').value  || null,
+        client_nom:     document.getElementById('client-nom').value     || null,
+        client_adresse: document.getElementById('client-adresse').value || null,
+        client_rc:      document.getElementById('client-rc').value      || null,
+        client_nif:     document.getElementById('client-nif').value     || null,
+        client_nis:     document.getElementById('client-nis').value     || null,
+        client_ai:      document.getElementById('client-ai').value      || null,
+        client_email:   document.getElementById('client-email').value   || null,
+        client_tel:     document.getElementById('client-tel').value     || null,
+        objet:          document.getElementById('objet').value          || null,
+        reglement:      document.getElementById('reglement').value      || null,
+        paiement:       document.getElementById('paiement').value       || null,
+        validite_jours: parseInt(document.getElementById('validite-jours').value) || null,
+        delai_min:      parseInt(document.getElementById('delai-min').value)      || null,
+        delai_max:      parseInt(document.getElementById('delai-max').value)      || null,
+        lignes,
+        total_ht:       parseDisp('total-ht'),
+        remise_pct:     parseFloat(document.getElementById('remise-pct').value) || 0,
+        remise_montant: parseDisp('remise-montant'),
+        montant_tva:    parseDisp('montant-tva'),
+        total_ttc:      parseDisp('total-ttc'),
+        apply_tva:      tvaEnabled,
+    };
+
+    try {
+        const res = await fetch(`/api/devis/${DEVIS_ID}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (res.ok) {
+            showToast('Devis modifié avec succès !', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(result.detail || 'Erreur lors de la modification.', 'error');
+            btn.disabled = false;
+            btn.textContent = '💾 Enregistrer les modifications';
+        }
+    } catch (e) {
+        showToast('Erreur réseau. Vérifiez le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = '💾 Enregistrer les modifications';
+    }
 }
 </script>
 </body>

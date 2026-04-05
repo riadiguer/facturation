@@ -251,6 +251,23 @@
         }
         .empty-state .icon { font-size: 44px; margin-bottom: 10px; }
         .empty-state p { font-size: 13px; margin-bottom: 14px; }
+
+        .btn-edit {
+            background: #fff7ed;
+            color: #c2410c;
+            border: 1px solid #fed7aa;
+            padding: 5px 13px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background .15s;
+            margin-left: 5px;
+        }
+        .btn-edit:hover { background: #ffedd5; }
+
+        .actions { display: flex; align-items: center; gap: 5px; }
     </style>
 </head>
 <body>
@@ -545,7 +562,14 @@
                         <td class="amount">{{ "{:,.2f}".format(dev.total_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
                         <td class="amount">{{ "{:,.2f}".format(dev.total_ttc or 0).replace(",", " ").replace(".", ",") }} DA</td>
                         <td style="color:#6b7280; font-size:12px;">{{ dev.created_by or '—' }}</td>
-                        <td><a href="/devis/{{ dev.id }}" class="btn-view" style="background:#ecfeff; color:#0891b2; border-color:#a5f3fc;">&#128065; Voir</a></td>
+                        <td>
+                            <div class="actions">
+                                <a href="/devis/{{ dev.id }}" class="btn-view" style="background:#ecfeff; color:#0891b2; border-color:#a5f3fc;">&#128065; Voir</a>
+                                {% if current_user.role == 'admin' %}
+                                <a href="/devis/{{ dev.id }}?edit=1" class="btn-edit">&#9998; Modifier</a>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
