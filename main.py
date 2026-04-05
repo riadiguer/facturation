@@ -56,12 +56,15 @@ class _DB:
             self._cur.execute(sql)
         return self
 
+    def _serialize(self, row: dict) -> dict:
+        return {k: v.isoformat() if hasattr(v, "isoformat") else v for k, v in row.items()}
+
     def fetchone(self):
         row = self._cur.fetchone()
-        return dict(row) if row else None
+        return self._serialize(dict(row)) if row else None
 
     def fetchall(self):
-        return [dict(r) for r in self._cur.fetchall()]
+        return [self._serialize(dict(r)) for r in self._cur.fetchall()]
 
     def commit(self):
         self._conn.commit()
