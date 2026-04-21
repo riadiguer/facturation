@@ -71,7 +71,8 @@
         }
         .btn:hover { opacity: .85; }
         .btn-primary { background: #2563eb; color: white; }
-        .btn-save    { background: #16a34a; color: white; }
+        .btn-save     { background: #16a34a; color: white; }
+        .btn-download { background: #0f766e; color: white; }
         .btn-back    { background: #6b7280; color: white; }
         .btn-logout  { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
         .btn-logout:hover { background: #f3f4f6; }
@@ -419,6 +420,7 @@
         #toast.success { background: #16a34a; }
         #toast.error   { background: #dc2626; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -444,6 +446,7 @@ const DEVIS_ID = DEVIS_DATA ? DEVIS_DATA.id : null;
 <div class="toolbar no-print">
     <a href="/" class="btn btn-back">&#8592; Retour à la liste</a>
     <button class="btn btn-primary" onclick="window.print()">&#128438; Imprimer / PDF</button>
+    <button class="btn btn-download" id="btn-download" onclick="downloadPDF()">&#11015; Télécharger PDF</button>
     {% if not readonly %}
     <button class="btn btn-save" id="btn-save" onclick="saveDevis()">&#128190; Sauvegarder</button>
     {% endif %}
@@ -932,6 +935,22 @@ function showToast(msg, type) {
     t.className = type;
     t.style.display = 'block';
     setTimeout(() => t.style.display = 'none', 3000);
+}
+
+async function downloadPDF() {
+    const btn = document.getElementById('btn-download');
+    btn.disabled = true;
+    btn.textContent = 'Génération...';
+    const opt = {
+        margin: 0,
+        filename: `Devis-${DEVIS_NUM}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    await html2pdf().set(opt).from(document.querySelector('.invoice')).save();
+    btn.disabled = false;
+    btn.innerHTML = '&#11015; Télécharger PDF';
 }
 
 // ── Edit (admin only) ─────────────────────────────────────────────────────
