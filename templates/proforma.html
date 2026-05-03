@@ -882,6 +882,8 @@ async function downloadPDF() {
     const btn = document.getElementById('btn-download');
     btn.disabled = true;
     btn.textContent = 'Génération...';
+    const hidden = document.querySelectorAll('.invoice .no-print');
+    hidden.forEach(el => el.style.display = 'none');
     const opt = {
         margin: 0,
         filename: `Proforma-${PROFORMA_NUM}.pdf`,
@@ -890,6 +892,7 @@ async function downloadPDF() {
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     await html2pdf().set(opt).from(document.querySelector('.invoice')).save();
+    hidden.forEach(el => el.style.display = '');
     btn.disabled = false;
     btn.innerHTML = '&#11015; Télécharger PDF';
 }
