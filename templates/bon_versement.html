@@ -260,6 +260,7 @@
         .services-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-bottom: 4px;
         }
 
@@ -276,6 +277,7 @@
             border: 1px solid #000;
             padding: 2px 4px;
             vertical-align: middle;
+            overflow: hidden;
         }
 
         .col-desc  { width: 38%; }
@@ -294,6 +296,8 @@
             background: transparent;
             min-height: 22px;
             display: block;
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
 
         .services-table td input[type="number"],
@@ -653,6 +657,8 @@ function addLigne(desc = '', qty = '', pu = '', taxes = 'TVA 19%') {
         </td>
     `;
     tbody.appendChild(tr);
+    const ta = tr.querySelector('textarea');
+    if (ta) autoResize(ta);
     const qtyVal = parseFloat(qty) || 0;
     const puVal  = parseFloat(pu)  || 0;
     tr.querySelector('.mont-val').textContent = fmt(qtyVal * puVal);
@@ -798,6 +804,26 @@ async function downloadPDF() {
     btn.textContent = 'Génération...';
     const hidden = document.querySelectorAll('.invoice .no-print');
     hidden.forEach(el => el.style.display = 'none');
+    const taReplacements = [];
+    document.querySelectorAll('.invoice textarea').forEach(ta => {
+        const cs = window.getComputedStyle(ta);
+        const div = document.createElement('div');
+        div.textContent = ta.value;
+        div.style.width = '100%';
+        div.style.minHeight = ta.offsetHeight + 'px';
+        div.style.fontFamily = cs.fontFamily;
+        div.style.fontSize = cs.fontSize;
+        div.style.lineHeight = cs.lineHeight;
+        div.style.padding = cs.padding;
+        div.style.whiteSpace = 'pre-wrap';
+        div.style.wordBreak = 'break-all';
+        div.style.overflowWrap = 'break-word';
+        div.style.overflow = 'hidden';
+        div.style.background = 'transparent';
+        div.style.boxSizing = 'border-box';
+        ta.parentNode.replaceChild(div, ta);
+        taReplacements.push({ div, ta });
+    });
     const opt = {
         margin: 0,
         filename: `BonVersement-${BV_NUM}.pdf`,
@@ -806,6 +832,7 @@ async function downloadPDF() {
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     await html2pdf().set(opt).from(document.querySelector('.invoice')).save();
+    taReplacements.forEach(({ div, ta }) => div.parentNode.replaceChild(ta, div));
     hidden.forEach(el => el.style.display = '');
     btn.disabled = false;
     btn.innerHTML = '&#11015; Télécharger PDF';

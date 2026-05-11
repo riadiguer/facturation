@@ -3,8 +3,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import sqlite3
 import json
 from datetime import datetime
 import os
@@ -23,8 +22,7 @@ templates = Jinja2Templates(directory="templates")
 
 _ITERATIONS = 260_000
 
-# ── Database URL ─────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "facturation.db")
 
 
 def hash_password(password: str) -> str:
@@ -44,37 +42,42 @@ def verify_password(plain: str, stored: str) -> bool:
 # ── DB wrapper ───────────────────────────────────────────────────────────────
 
 class _DB:
-    def __init__(self, conn):
+    def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
-        self._cur  = None
+        self._cur: Optional[sqlite3.Cursor] = None
 
-    def execute(self, sql, params=()):
-        self._cur = self._conn.cursor(cursor_factory=RealDictCursor)
-        if params:
-            self._cur.execute(sql, params)
-        else:
-            self._cur.execute(sql)
+    def execute(self, sql: str, params=()):
+        self._cur = self._conn.execute(sql, params)
         return self
 
-    def _serialize(self, row: dict) -> dict:
-        return {k: v.isoformat() if hasattr(v, "isoformat") else v for k, v in row.items()}
+    def _row_to_dict(self, row) -> dict:
+        d = dict(row)
+        return {k: v.isoformat() if hasattr(v, "isoformat") else v for k, v in d.items()}
 
     def fetchone(self):
         row = self._cur.fetchone()
-        return self._serialize(dict(row)) if row else None
+        return self._row_to_dict(row) if row else None
 
     def fetchall(self):
-        return [self._serialize(dict(r)) for r in self._cur.fetchall()]
+        return [self._row_to_dict(r) for r in self._cur.fetchall()]
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid
 
     def commit(self):
         self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
 
     def close(self):
         self._conn.close()
 
 
 def get_db() -> _DB:
-    conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     return _DB(conn)
 
 
@@ -85,7 +88,7 @@ def init_db():
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS invoices (
-            id              SERIAL PRIMARY KEY,
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
             facture_num     TEXT UNIQUE NOT NULL,
             facture_date    TEXT,
             client_doit     TEXT,
@@ -105,13 +108,13 @@ def init_db():
             net_a_payer     REAL    DEFAULT 0,
             montant_lettre  TEXT,
             created_by      TEXT,
-            created_at      TIMESTAMPTZ DEFAULT NOW()
+            created_at      TEXT    DEFAULT (datetime('now'))
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS proformas (
-            id                SERIAL PRIMARY KEY,
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
             proforma_num      TEXT UNIQUE NOT NULL,
             proforma_date     TEXT,
             client_code       TEXT,
@@ -132,18 +135,18 @@ def init_db():
             total_ttc         REAL  DEFAULT 0,
             objet             TEXT,
             reglement         TEXT  DEFAULT 'Chèque',
-            paiement          TEXT  DEFAULT '40%% à la commande, 30%% à mi-projet, 30%% à la livraison',
+            paiement          TEXT  DEFAULT '40% à la commande, 30% à mi-projet, 30% à la livraison',
             validite_jours    INTEGER,
             delai_min         INTEGER,
             delai_max         INTEGER,
             created_by        TEXT,
-            created_at        TIMESTAMPTZ DEFAULT NOW()
+            created_at        TEXT  DEFAULT (datetime('now'))
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS devis (
-            id                SERIAL PRIMARY KEY,
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
             devis_num         TEXT UNIQUE NOT NULL,
             devis_date        TEXT,
             client_code       TEXT,
@@ -165,18 +168,18 @@ def init_db():
             apply_tva         INTEGER DEFAULT 1,
             objet             TEXT,
             reglement         TEXT  DEFAULT 'Chèque',
-            paiement          TEXT  DEFAULT '40%% à la commande, 30%% à mi-projet, 30%% à la livraison',
+            paiement          TEXT  DEFAULT '40% à la commande, 30% à mi-projet, 30% à la livraison',
             validite_jours    INTEGER,
             delai_min         INTEGER,
             delai_max         INTEGER,
             created_by        TEXT,
-            created_at        TIMESTAMPTZ DEFAULT NOW()
+            created_at        TEXT  DEFAULT (datetime('now'))
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS bons_commande (
-            id                SERIAL PRIMARY KEY,
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
             bc_num            TEXT UNIQUE NOT NULL,
             bc_date           TEXT,
             client_adresse_a  TEXT,
@@ -194,13 +197,13 @@ def init_db():
             montant_lettre    TEXT,
             mode_reglement    TEXT,
             created_by        TEXT,
-            created_at        TIMESTAMPTZ DEFAULT NOW()
+            created_at        TEXT  DEFAULT (datetime('now'))
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS bons_versement (
-            id                SERIAL PRIMARY KEY,
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
             bv_num            TEXT UNIQUE NOT NULL,
             bv_date           TEXT,
             client_adresse_a  TEXT,
@@ -218,13 +221,13 @@ def init_db():
             montant_lettre    TEXT,
             mode_reglement    TEXT,
             created_by        TEXT,
-            created_at        TIMESTAMPTZ DEFAULT NOW()
+            created_at        TEXT  DEFAULT (datetime('now'))
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id            SERIAL PRIMARY KEY,
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
             username      TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role          TEXT NOT NULL DEFAULT 'agent'
@@ -233,11 +236,11 @@ def init_db():
     """)
 
     conn.execute(
-        "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+        "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?,?,?)",
         ("admin", hash_password("Admin@123"), "admin")
     )
     conn.execute(
-        "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+        "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?,?,?)",
         ("agent", hash_password("Agent@123"), "agent")
     )
 
@@ -245,14 +248,7 @@ def init_db():
     conn.close()
 
 
-for _attempt in range(5):
-    try:
-        init_db()
-        break
-    except Exception as _e:
-        if _attempt == 4:
-            raise
-        time.sleep(2 ** _attempt)
+init_db()
 
 
 def migrate_db():
@@ -266,10 +262,10 @@ def migrate_db():
     ]
     for table, col_def in migrations:
         try:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col_def}")
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
             conn.commit()
         except Exception:
-            conn._conn.rollback()
+            conn.rollback()
     conn.close()
 
 
@@ -283,7 +279,7 @@ def get_next_proforma_number() -> str:
     conn = get_db()
     row = conn.execute(
         "SELECT COALESCE(MAX(CAST(SUBSTR(proforma_num, 10) AS INTEGER)), 0) AS seq "
-        "FROM proformas WHERE proforma_num LIKE %s",
+        "FROM proformas WHERE proforma_num LIKE ?",
         (f"PRO-{year}-%",)
     ).fetchone()
     conn.close()
@@ -295,7 +291,7 @@ def get_next_devis_number() -> str:
     conn = get_db()
     row = conn.execute(
         "SELECT COALESCE(MAX(CAST(SUBSTR(devis_num, 10) AS INTEGER)), 0) AS seq "
-        "FROM devis WHERE devis_num LIKE %s",
+        "FROM devis WHERE devis_num LIKE ?",
         (f"DEV-{year}-%",)
     ).fetchone()
     conn.close()
@@ -307,7 +303,7 @@ def get_next_bv_number() -> str:
     conn = get_db()
     row = conn.execute(
         "SELECT COALESCE(MAX(CAST(SUBSTR(bv_num, 9) AS INTEGER)), 0) AS seq "
-        "FROM bons_versement WHERE bv_num LIKE %s",
+        "FROM bons_versement WHERE bv_num LIKE ?",
         (f"BV-{year}-%",)
     ).fetchone()
     conn.close()
@@ -319,7 +315,7 @@ def get_next_bc_number() -> str:
     conn = get_db()
     row = conn.execute(
         "SELECT COALESCE(MAX(CAST(SUBSTR(bc_num, 9) AS INTEGER)), 0) AS seq "
-        "FROM bons_commande WHERE bc_num LIKE %s",
+        "FROM bons_commande WHERE bc_num LIKE ?",
         (f"BC-{year}-%",)
     ).fetchone()
     conn.close()
@@ -331,7 +327,7 @@ def get_next_invoice_number() -> str:
     conn = get_db()
     row = conn.execute(
         "SELECT COALESCE(MAX(CAST(SUBSTR(facture_num, 6) AS INTEGER)), 0) AS seq "
-        "FROM invoices WHERE facture_num LIKE %s",
+        "FROM invoices WHERE facture_num LIKE ?",
         (f"{year}-%",)
     ).fetchone()
     conn.close()
@@ -498,7 +494,7 @@ async def login_submit(request: Request):
 
     conn = get_db()
     user = conn.execute(
-        "SELECT * FROM users WHERE username = %s", (username,)
+        "SELECT * FROM users WHERE username = ?", (username,)
     ).fetchone()
     conn.close()
 
@@ -581,14 +577,14 @@ async def create_user(request: Request):
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)",
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
             (username, hash_password(password), role)
         )
         conn.commit()
         conn.close()
         return RedirectResponse(url="/admin/users?success=created", status_code=302)
-    except psycopg2.errors.UniqueViolation:
-        conn._conn.rollback()
+    except sqlite3.IntegrityError:
+        conn.rollback()
         conn.close()
         return RedirectResponse(
             url="/admin/users?error=Ce+nom+d%27utilisateur+existe+déjà",
@@ -609,7 +605,7 @@ async def delete_user(request: Request, user_id: int):
             status_code=302
         )
     conn = get_db()
-    conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/users?success=deleted", status_code=302)
@@ -640,7 +636,7 @@ async def change_password(request: Request, user_id: int):
 
     conn = get_db()
     conn.execute(
-        "UPDATE users SET password_hash = %s WHERE id = %s",
+        "UPDATE users SET password_hash = ? WHERE id = ?",
         (hash_password(new_pw), user_id)
     )
     conn.commit()
@@ -718,7 +714,7 @@ async def view_invoice(request: Request, invoice_id: int):
 
     conn = get_db()
     inv = conn.execute(
-        "SELECT * FROM invoices WHERE id = %s", (invoice_id,)
+        "SELECT * FROM invoices WHERE id = ?", (invoice_id,)
     ).fetchone()
     conn.close()
 
@@ -757,7 +753,7 @@ async def view_proforma(request: Request, proforma_id: int):
         return RedirectResponse(url="/login", status_code=302)
     conn = get_db()
     pro = conn.execute(
-        "SELECT * FROM proformas WHERE id = %s", (proforma_id,)
+        "SELECT * FROM proformas WHERE id = ?", (proforma_id,)
     ).fetchone()
     conn.close()
     if not pro:
@@ -779,7 +775,7 @@ async def create_proforma(request: Request, data: ProformaCreate):
         raise HTTPException(status_code=401, detail="Non authentifié")
     conn = get_db()
     try:
-        row = conn.execute("""
+        conn.execute("""
             INSERT INTO proformas
             (proforma_num, proforma_date,
              client_code, client_raison, client_nom, client_adresse,
@@ -787,8 +783,7 @@ async def create_proforma(request: Request, data: ProformaCreate):
              lignes, total_ht, remise_pct, remise_montant, montant_tva, total_ttc,
              objet, reglement, paiement, validite_jours, delai_min, delai_max,
              created_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            RETURNING id
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             data.proforma_num, data.proforma_date,
             data.client_code, data.client_raison, data.client_nom, data.client_adresse,
@@ -800,13 +795,13 @@ async def create_proforma(request: Request, data: ProformaCreate):
             data.objet, data.reglement, data.paiement,
             data.validite_jours, data.delai_min, data.delai_max,
             user["username"]
-        )).fetchone()
-        new_id = row["id"]
+        ))
+        new_id = conn.lastrowid
         conn.commit()
         conn.close()
         return {"success": True, "id": new_id, "proforma_num": data.proforma_num}
-    except psycopg2.errors.UniqueViolation:
-        conn._conn.rollback()
+    except sqlite3.IntegrityError:
+        conn.rollback()
         conn.close()
         raise HTTPException(
             status_code=409,
@@ -834,7 +829,7 @@ async def view_devis(request: Request, devis_id: int):
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     conn = get_db()
-    dev = conn.execute("SELECT * FROM devis WHERE id = %s", (devis_id,)).fetchone()
+    dev = conn.execute("SELECT * FROM devis WHERE id = ?", (devis_id,)).fetchone()
     conn.close()
     if not dev:
         raise HTTPException(status_code=404, detail="Devis introuvable")
@@ -857,7 +852,7 @@ async def create_devis(request: Request, data: DevisCreate):
         raise HTTPException(status_code=401, detail="Non authentifié")
     conn = get_db()
     try:
-        row = conn.execute("""
+        conn.execute("""
             INSERT INTO devis
             (devis_num, devis_date,
              client_code, client_raison, client_nom, client_adresse,
@@ -865,8 +860,7 @@ async def create_devis(request: Request, data: DevisCreate):
              lignes, total_ht, remise_pct, remise_montant, montant_tva, total_ttc,
              apply_tva, objet, reglement, paiement, validite_jours, delai_min, delai_max,
              created_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            RETURNING id
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             data.devis_num, data.devis_date,
             data.client_code, data.client_raison, data.client_nom, data.client_adresse,
@@ -879,13 +873,13 @@ async def create_devis(request: Request, data: DevisCreate):
             data.objet, data.reglement, data.paiement,
             data.validite_jours, data.delai_min, data.delai_max,
             user["username"]
-        )).fetchone()
-        new_id = row["id"]
+        ))
+        new_id = conn.lastrowid
         conn.commit()
         conn.close()
         return {"success": True, "id": new_id, "devis_num": data.devis_num}
-    except psycopg2.errors.UniqueViolation:
-        conn._conn.rollback()
+    except sqlite3.IntegrityError:
+        conn.rollback()
         conn.close()
         raise HTTPException(
             status_code=409,
@@ -901,17 +895,17 @@ async def update_devis(request: Request, devis_id: int, data: DevisCreate):
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
     conn = get_db()
-    existing = conn.execute("SELECT id FROM devis WHERE id = %s", (devis_id,)).fetchone()
+    existing = conn.execute("SELECT id FROM devis WHERE id = ?", (devis_id,)).fetchone()
     if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Devis introuvable")
     conn.execute("""
         UPDATE devis SET
-            devis_date=%s, client_code=%s, client_raison=%s, client_nom=%s, client_adresse=%s,
-            client_rc=%s, client_nif=%s, client_nis=%s, client_ai=%s, client_email=%s, client_tel=%s,
-            lignes=%s, total_ht=%s, remise_pct=%s, remise_montant=%s, montant_tva=%s, total_ttc=%s,
-            apply_tva=%s, objet=%s, reglement=%s, paiement=%s, validite_jours=%s, delai_min=%s, delai_max=%s
-        WHERE id=%s
+            devis_date=?, client_code=?, client_raison=?, client_nom=?, client_adresse=?,
+            client_rc=?, client_nif=?, client_nis=?, client_ai=?, client_email=?, client_tel=?,
+            lignes=?, total_ht=?, remise_pct=?, remise_montant=?, montant_tva=?, total_ttc=?,
+            apply_tva=?, objet=?, reglement=?, paiement=?, validite_jours=?, delai_min=?, delai_max=?
+        WHERE id=?
     """, (
         data.devis_date,
         data.client_code, data.client_raison, data.client_nom, data.client_adresse,
@@ -950,7 +944,7 @@ async def view_bc(request: Request, bc_id: int):
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     conn = get_db()
-    bc = conn.execute("SELECT * FROM bons_commande WHERE id = %s", (bc_id,)).fetchone()
+    bc = conn.execute("SELECT * FROM bons_commande WHERE id = ?", (bc_id,)).fetchone()
     conn.close()
     if not bc:
         raise HTTPException(status_code=404, detail="Bon de commande introuvable")
@@ -971,15 +965,14 @@ async def create_bc(request: Request, data: BonCommandeCreate):
         raise HTTPException(status_code=401, detail="Non authentifié")
     conn = get_db()
     try:
-        row = conn.execute("""
+        conn.execute("""
             INSERT INTO bons_commande
             (bc_num, bc_date,
              client_adresse_a, client_nom, client_rc, client_nif,
              client_nis, client_art, client_tel, client_adresse,
              lignes, montant_ht, montant_tva, montant_ttc,
              montant_lettre, mode_reglement, created_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            RETURNING id
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             data.bc_num, data.bc_date,
             data.client_adresse_a, data.client_nom, data.client_rc, data.client_nif,
@@ -988,13 +981,13 @@ async def create_bc(request: Request, data: BonCommandeCreate):
             data.montant_ht, data.montant_tva, data.montant_ttc,
             data.montant_lettre, data.mode_reglement,
             user["username"]
-        )).fetchone()
-        new_id = row["id"]
+        ))
+        new_id = conn.lastrowid
         conn.commit()
         conn.close()
         return {"success": True, "id": new_id, "bc_num": data.bc_num}
-    except psycopg2.errors.UniqueViolation:
-        conn._conn.rollback()
+    except sqlite3.IntegrityError:
+        conn.rollback()
         conn.close()
         raise HTTPException(
             status_code=409,
@@ -1022,7 +1015,7 @@ async def view_bv(request: Request, bv_id: int):
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     conn = get_db()
-    bv = conn.execute("SELECT * FROM bons_versement WHERE id = %s", (bv_id,)).fetchone()
+    bv = conn.execute("SELECT * FROM bons_versement WHERE id = ?", (bv_id,)).fetchone()
     conn.close()
     if not bv:
         raise HTTPException(status_code=404, detail="Bon de versement introuvable")
@@ -1043,15 +1036,14 @@ async def create_bv(request: Request, data: BonVersementCreate):
         raise HTTPException(status_code=401, detail="Non authentifié")
     conn = get_db()
     try:
-        row = conn.execute("""
+        conn.execute("""
             INSERT INTO bons_versement
             (bv_num, bv_date,
              client_adresse_a, client_nom, client_rc, client_nif,
              client_nis, client_art, client_tel, client_adresse,
              lignes, montant_ht, montant_tva, montant_ttc,
              montant_lettre, mode_reglement, created_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            RETURNING id
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             data.bv_num, data.bv_date,
             data.client_adresse_a, data.client_nom, data.client_rc, data.client_nif,
@@ -1060,13 +1052,13 @@ async def create_bv(request: Request, data: BonVersementCreate):
             data.montant_ht, data.montant_tva, data.montant_ttc,
             data.montant_lettre, data.mode_reglement,
             user["username"]
-        )).fetchone()
-        new_id = row["id"]
+        ))
+        new_id = conn.lastrowid
         conn.commit()
         conn.close()
         return {"success": True, "id": new_id, "bv_num": data.bv_num}
-    except psycopg2.errors.UniqueViolation:
-        conn._conn.rollback()
+    except sqlite3.IntegrityError:
+        conn.rollback()
         conn.close()
         raise HTTPException(
             status_code=409,
@@ -1082,14 +1074,13 @@ async def create_invoice(request: Request, data: InvoiceCreate):
 
     conn = get_db()
     try:
-        row = conn.execute("""
+        conn.execute("""
             INSERT INTO invoices
             (facture_num, facture_date, client_doit, client_adresse, client_ai,
              client_rc, client_nif, client_nis, charge, secteur, mode_reglement,
              services, montant_ht, montant_tva, montant_ttc, timbre, net_a_payer,
              montant_lettre, created_by)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            RETURNING id
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             data.facture_num, data.facture_date, data.client_doit, data.client_adresse,
             data.client_ai, data.client_rc, data.client_nif, data.client_nis,
@@ -1098,13 +1089,13 @@ async def create_invoice(request: Request, data: InvoiceCreate):
             data.montant_ht, data.montant_tva, data.montant_ttc,
             data.timbre, data.net_a_payer, data.montant_lettre,
             user["username"]
-        )).fetchone()
-        new_id = row["id"]
+        ))
+        new_id = conn.lastrowid
         conn.commit()
         conn.close()
         return {"success": True, "id": new_id, "facture_num": data.facture_num}
-    except psycopg2.errors.UniqueViolation:
-        conn._conn.rollback()
+    except sqlite3.IntegrityError:
+        conn.rollback()
         conn.close()
         raise HTTPException(
             status_code=409,
