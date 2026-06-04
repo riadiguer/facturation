@@ -27,7 +27,6 @@ USE_POSTGRES = bool(DATABASE_URL)
 if USE_POSTGRES:
     import psycopg2
     import psycopg2.extras
-    import psycopg2.errors
     IntegrityError = psycopg2.IntegrityError
 else:
     import sqlite3
@@ -98,7 +97,7 @@ class _DB:
 
 def get_db() -> _DB:
     if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        conn = psycopg2.connect(DATABASE_URL)
     else:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -425,7 +424,7 @@ if USE_POSTGRES:
         try:
             init_db()
             break
-        except Exception as _e:
+        except Exception:
             if _attempt == 4:
                 raise
             time.sleep(2 ** _attempt)
