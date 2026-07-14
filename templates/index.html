@@ -415,7 +415,14 @@
                         <td class="amount">{{ "{:,.2f}".format(inv.montant_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
                         <td class="amount">{{ "{:,.2f}".format(inv.net_a_payer or 0).replace(",", " ").replace(".", ",") }} DA</td>
                         <td style="color:#6b7280; font-size:12px;">{{ inv.created_by or '—' }}</td>
-                        <td><a href="/invoice/{{ inv.id }}" class="btn-view">&#128065; Voir</a></td>
+                        <td>
+                            <div class="actions">
+                                <a href="/invoice/{{ inv.id }}" class="btn-view">&#128065; Voir</a>
+                                {% if current_user.role == 'admin' %}
+                                <a href="/invoice/{{ inv.id }}?edit=1" class="btn-edit">&#9998; Modifier</a>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -464,7 +471,14 @@
                         <td class="amount">{{ "{:,.2f}".format(pro.total_ht or 0).replace(",", " ").replace(".", ",") }} DA</td>
                         <td class="amount">{{ "{:,.2f}".format(pro.total_ttc or 0).replace(",", " ").replace(".", ",") }} DA</td>
                         <td style="color:#6b7280; font-size:12px;">{{ pro.created_by or '—' }}</td>
-                        <td><a href="/proforma/{{ pro.id }}" class="btn-view purple">&#128065; Voir</a></td>
+                        <td>
+                            <div class="actions">
+                                <a href="/proforma/{{ pro.id }}" class="btn-view purple">&#128065; Voir</a>
+                                {% if current_user.role == 'admin' %}
+                                <a href="/proforma/{{ pro.id }}?edit=1" class="btn-edit">&#9998; Modifier</a>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

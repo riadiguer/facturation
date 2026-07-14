@@ -433,6 +433,8 @@
     const PROFORMA_NUM  = {{ proforma_num | tojson }};
     const PROFORMA_DATA = {{ proforma | tojson if proforma else 'null' }};
     const IS_READONLY   = {{ 'true' if readonly else 'false' }};
+    const AUTO_EDIT     = {{ 'true' if auto_edit else 'false' }};
+    const PROFORMA_ID   = PROFORMA_DATA ? PROFORMA_DATA.id : null;
 </script>
 
 <!-- Toolbar -->
@@ -442,6 +444,10 @@
     <button class="btn btn-download" id="btn-download" onclick="downloadPDF()">&#11015; Télécharger PDF</button>
     {% if not readonly %}
     <button class="btn btn-save" id="btn-save" onclick="saveProforma()">&#128190; Sauvegarder</button>
+    {% endif %}
+    {% if readonly and current_user.role == 'admin' %}
+    <button class="btn btn-primary" id="btn-edit" onclick="enableEdit()">&#9998; Modifier</button>
+    <button class="btn btn-save" id="btn-save-edit" style="display:none" onclick="saveEdit()">&#128190; Enregistrer les modifications</button>
     {% endif %}
     {% if readonly and creator %}
     <span class="user-info" style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:5px 12px; color:#16a34a;">
@@ -696,6 +702,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     calculateTotals();
+
+    if (AUTO_EDIT) enableEdit();
 });
 
 function setVal(id, val) {
@@ -873,6 +881,81 @@ async function saveProforma() {
         showToast('Erreur réseau. Vérifiez le serveur.', 'error');
         btn.disabled = false;
         btn.textContent = '💾 Sauvegarder';
+    }
+}
+
+// ── Edit (admin only) ─────────────────────────────────────────────────────
+function enableEdit() {
+    document.querySelectorAll('.invoice input, .invoice textarea').forEach(el => {
+        el.removeAttribute('readonly');
+        el.style.cursor = '';
+    });
+    document.getElementById('add-row-btn').style.display = '';
+    document.querySelectorAll('.btn-danger').forEach(b => b.style.display = '');
+    document.getElementById('btn-edit').style.display = 'none';
+    document.getElementById('btn-save-edit').style.display = '';
+}
+
+async function saveEdit() {
+    const btn = document.getElementById('btn-save-edit');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+
+    const lignes = [];
+    document.querySelectorAll('#lignes-body tr').forEach(tr => {
+        const ref  = tr.querySelector('.ref-input')?.value || '';
+        const ta   = tr.querySelector('textarea');
+        const pu   = parseFloat(tr.querySelector('.pu-input')?.value)  || 0;
+        const qty  = parseFloat(tr.querySelector('.qty-input')?.value) || 0;
+        lignes.push({ reference: ref, description: ta?.value || '', pu_ht: pu, quantite: qty, montant_ht: pu * qty });
+    });
+
+    const payload = {
+        proforma_num:   document.getElementById('proforma-num').value,
+        proforma_date:  document.getElementById('proforma-date').value   || null,
+        client_code:    document.getElementById('client-code').value     || null,
+        client_raison:  document.getElementById('client-raison').value   || null,
+        client_nom:     document.getElementById('client-nom').value      || null,
+        client_adresse: document.getElementById('client-adresse').value  || null,
+        client_rc:      document.getElementById('client-rc').value       || null,
+        client_nif:     document.getElementById('client-nif').value      || null,
+        client_nis:     document.getElementById('client-nis').value      || null,
+        client_ai:      document.getElementById('client-ai').value       || null,
+        client_email:   document.getElementById('client-email').value    || null,
+        client_tel:     document.getElementById('client-tel').value      || null,
+        objet:          document.getElementById('objet').value           || null,
+        reglement:      document.getElementById('reglement').value       || null,
+        paiement:       document.getElementById('paiement').value        || null,
+        validite_jours: parseInt(document.getElementById('validite-jours').value) || null,
+        delai_min:      parseInt(document.getElementById('delai-min').value)      || null,
+        delai_max:      parseInt(document.getElementById('delai-max').value)      || null,
+        lignes,
+        total_ht:       parseDisp('total-ht'),
+        remise_pct:     parseFloat(document.getElementById('remise-pct').value) || 0,
+        remise_montant: parseDisp('remise-montant'),
+        montant_tva:    parseDisp('montant-tva'),
+        total_ttc:      parseDisp('total-ttc'),
+    };
+
+    try {
+        const res = await fetch(`/api/proformas/${PROFORMA_ID}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (res.ok) {
+            showToast('Proforma modifié avec succès !', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(result.detail || 'Erreur lors de la modification.', 'error');
+            btn.disabled = false;
+            btn.textContent = '💾 Enregistrer les modifications';
+        }
+    } catch (e) {
+        showToast('Erreur réseau. Vérifiez le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = '💾 Enregistrer les modifications';
     }
 }
 

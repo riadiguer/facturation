@@ -392,6 +392,8 @@
     const FACTURE_NUM  = {{ facture_num | tojson }};
     const INVOICE_DATA = {{ invoice | tojson if invoice else 'null' }};
     const IS_READONLY  = {{ 'true' if readonly else 'false' }};
+    const AUTO_EDIT    = {{ 'true' if auto_edit else 'false' }};
+    const INVOICE_ID   = INVOICE_DATA ? INVOICE_DATA.id : null;
 </script>
 
 <!-- Toolbar -->
@@ -401,6 +403,10 @@
     <button class="btn btn-download" id="btn-download" onclick="downloadPDF()">&#11015; Télécharger PDF</button>
     {% if not readonly %}
     <button class="btn btn-save" id="btn-save" onclick="saveInvoice()">&#128190; Sauvegarder</button>
+    {% endif %}
+    {% if readonly and current_user.role == 'admin' %}
+    <button class="btn btn-primary" id="btn-edit" onclick="enableEdit()">&#9998; Modifier</button>
+    <button class="btn btn-save" id="btn-save-edit" style="display:none" onclick="saveEdit()">&#128190; Enregistrer les modifications</button>
     {% endif %}
     {% if readonly and creator %}
     <span class="user-info" style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:5px 12px; color:#16a34a;">
@@ -620,6 +626,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     calculateTotals();
+
+    if (AUTO_EDIT) enableEdit();
 });
 
 function setVal(id, val) {
@@ -765,6 +773,81 @@ async function saveInvoice() {
         showToast('Erreur réseau. Vérifiez le serveur.', 'error');
         btn.disabled = false;
         btn.textContent = '💾 Sauvegarder';
+    }
+}
+
+// ── Edit (admin only) ─────────────────────────────────────────────────────
+function enableEdit() {
+    document.querySelectorAll('.invoice input, .invoice textarea').forEach(el => {
+        el.removeAttribute('readonly');
+        el.style.cursor = '';
+    });
+    document.getElementById('add-row-btn').style.display = '';
+    document.querySelectorAll('.btn-danger').forEach(b => b.style.display = '');
+    document.getElementById('btn-edit').style.display = 'none';
+    document.getElementById('btn-save-edit').style.display = '';
+}
+
+async function saveEdit() {
+    const btn = document.getElementById('btn-save-edit');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+
+    const services = [];
+    document.querySelectorAll('#services-body tr').forEach(row => {
+        const tas  = row.querySelectorAll('textarea');
+        const prix = row.querySelector('input[type="number"]');
+        services.push({
+            service: tas[0]?.value || '',
+            details: tas[1]?.value || '',
+            prix:    parseFloat(prix?.value) || 0
+        });
+    });
+
+    const parseNum = id => parseFloat(
+        document.getElementById(id).textContent.replace(/\s/g, '').replace(',', '.') || 0
+    );
+
+    const payload = {
+        facture_num:     document.getElementById('facture-num').value,
+        facture_date:    document.getElementById('facture-date').value     || null,
+        client_doit:     document.getElementById('client-doit').value      || null,
+        client_adresse:  document.getElementById('client-adresse').value   || null,
+        client_ai:       document.getElementById('client-ai').value        || null,
+        client_rc:       document.getElementById('client-rc').value        || null,
+        client_nif:      document.getElementById('client-nif').value       || null,
+        client_nis:      document.getElementById('client-nis').value       || null,
+        charge:          document.getElementById('charge').value           || null,
+        secteur:         document.getElementById('secteur').value          || null,
+        mode_reglement:  document.getElementById('mode-reglement').value   || null,
+        timbre:          parseFloat(document.getElementById('timbre').value) || 0,
+        montant_lettre:  document.getElementById('montant-lettre-text').textContent || null,
+        services,
+        montant_ht:  parseNum('montant-ht'),
+        montant_tva: parseNum('montant-tva'),
+        montant_ttc: parseNum('montant-ttc'),
+        net_a_payer: parseNum('net-a-payer'),
+    };
+
+    try {
+        const res = await fetch(`/api/invoices/${INVOICE_ID}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (res.ok) {
+            showToast('Facture modifiée avec succès !', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showToast(result.detail || 'Erreur lors de la modification.', 'error');
+            btn.disabled = false;
+            btn.textContent = '💾 Enregistrer les modifications';
+        }
+    } catch (e) {
+        showToast('Erreur réseau. Vérifiez le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = '💾 Enregistrer les modifications';
     }
 }
 

@@ -895,10 +895,12 @@ async def view_invoice(request: Request, invoice_id: int):
     if not inv:
         raise HTTPException(status_code=404, detail="Facture introuvable")
     inv["services"] = json.loads(inv.get("services") or "[]")
+    auto_edit = request.query_params.get("edit") == "1" and user["role"] == "admin"
     return templates.TemplateResponse(request, "invoice.html", {
         "facture_num":  inv["facture_num"],
         "invoice":      inv,
         "readonly":     True,
+        "auto_edit":    auto_edit,
         "creator":      inv.get("created_by") or "—",
         "current_user": user
     })
@@ -929,10 +931,12 @@ async def view_proforma(request: Request, proforma_id: int):
     if not pro:
         raise HTTPException(status_code=404, detail="Proforma introuvable")
     pro["lignes"] = json.loads(pro.get("lignes") or "[]")
+    auto_edit = request.query_params.get("edit") == "1" and user["role"] == "admin"
     return templates.TemplateResponse(request, "proforma.html", {
         "proforma_num": pro["proforma_num"],
         "proforma":     pro,
         "readonly":     True,
+        "auto_edit":    auto_edit,
         "creator":      pro.get("created_by") or "—",
         "current_user": user
     })
@@ -974,6 +978,42 @@ async def create_proforma(request: Request, data: ProformaCreate):
         conn.rollback()
         conn.close()
         raise HTTPException(status_code=409, detail=f"Le proforma {data.proforma_num} existe déjà")
+
+
+@app.put("/api/proformas/{proforma_id}")
+async def update_proforma(request: Request, proforma_id: int, data: ProformaCreate):
+    user = session_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
+    conn = get_db()
+    existing = conn.execute("SELECT id FROM proformas WHERE id = ?", (proforma_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Proforma introuvable")
+    conn.execute("""
+        UPDATE proformas SET
+            proforma_date=?, client_code=?, client_raison=?, client_nom=?, client_adresse=?,
+            client_rc=?, client_nif=?, client_nis=?, client_ai=?, client_email=?, client_tel=?,
+            lignes=?, total_ht=?, remise_pct=?, remise_montant=?, montant_tva=?, total_ttc=?,
+            objet=?, reglement=?, paiement=?, validite_jours=?, delai_min=?, delai_max=?
+        WHERE id=?
+    """, (
+        data.proforma_date,
+        data.client_code, data.client_raison, data.client_nom, data.client_adresse,
+        data.client_rc, data.client_nif, data.client_nis, data.client_ai,
+        data.client_email, data.client_tel,
+        json.dumps([l.model_dump() for l in data.lignes]),
+        data.total_ht, data.remise_pct, data.remise_montant,
+        data.montant_tva, data.total_ttc,
+        data.objet, data.reglement, data.paiement,
+        data.validite_jours, data.delai_min, data.delai_max,
+        proforma_id
+    ))
+    conn.commit()
+    conn.close()
+    return {"success": True, "id": proforma_id}
 
 
 @app.get("/devis/new", response_class=HTMLResponse)
@@ -1255,3 +1295,36 @@ async def create_invoice(request: Request, data: InvoiceCreate):
         conn.rollback()
         conn.close()
         raise HTTPException(status_code=409, detail=f"La facture {data.facture_num} existe déjà")
+
+
+@app.put("/api/invoices/{invoice_id}")
+async def update_invoice(request: Request, invoice_id: int, data: InvoiceCreate):
+    user = session_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
+    conn = get_db()
+    existing = conn.execute("SELECT id FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    conn.execute("""
+        UPDATE invoices SET
+            facture_date=?, client_doit=?, client_adresse=?, client_ai=?,
+            client_rc=?, client_nif=?, client_nis=?, charge=?, secteur=?, mode_reglement=?,
+            services=?, montant_ht=?, montant_tva=?, montant_ttc=?, timbre=?, net_a_payer=?,
+            montant_lettre=?
+        WHERE id=?
+    """, (
+        data.facture_date, data.client_doit, data.client_adresse, data.client_ai,
+        data.client_rc, data.client_nif, data.client_nis,
+        data.charge, data.secteur, data.mode_reglement,
+        json.dumps([s.model_dump() for s in data.services]),
+        data.montant_ht, data.montant_tva, data.montant_ttc,
+        data.timbre, data.net_a_payer, data.montant_lettre,
+        invoice_id
+    ))
+    conn.commit()
+    conn.close()
+    return {"success": True, "id": invoice_id}
