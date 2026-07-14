@@ -14,7 +14,7 @@ import time
 from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI(title="Facturation - EURL E-BUSINESS LAB")
-app.add_middleware(SessionMiddleware, secret_key="ebl-facturation-2026-xK9mP3qR")
+app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SECRET_KEY", "dev-only-insecure-key"))
 
 templates = Jinja2Templates(directory="templates")
 
